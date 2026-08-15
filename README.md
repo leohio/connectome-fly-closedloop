@@ -98,3 +98,20 @@ proprioceptive SN を entryNerve=ProLN/MesoLN/MetaLN×L/R で脚に割当)→ �
 - DLMn点火波形を `outputs/dlm_ignition.npz` に書き出し → fly-flight-sim で翅駆動に使用
 - `outputs/brain_body_sync.mp4` — 歩行中のMANC発火ラスター(活動2,238ニューロン:
   感覚543/介在1,570/運動104/DN21、10万スパイク)と身体映像の同期動画
+
+## 追記6: 実測スパイク→力界面 (integrate_measured.py)
+
+Azevedo et al. 2020 (eLife 56754) の実測に基づき、発明品だった神経-筋界面を置換:
+- **サイズ原理**: MNごとに力/スパイクを0.1〜10μN(実測の100倍レンジ)に
+  プール内サイズランク(入力シナプス数)で対数割当
+- **単収縮動態**: α関数、fast τ=15ms(半値8.5msの実測に対応)〜slow τ=150ms
+- **劣加算**: tanh飽和(2発で1.6倍・10発で飽和の実測に対応)
+- 検算: slow MN 30Hz持続 → 約1.2μN(論文の安静時力〜1.5μNと一致)
+- 較正定数は K_CAL (rad/μN) 1個のみ
+
+結果: 立位さらに安定(z=1.71)、足踏み継続、力はピーク27μNの実測レンジ。
+`outputs/measured_interface_validation.png`
+
+新たな発見: 発火率とサイズの相関が+0.18 — 実物のサイズ原理の動員順
+(小MNほど高頻度)は出ない。全MN同一LIFには実物の興奮性勾配
+(小MNほど入力抵抗大)が無いため。次の標的=MN膜特性のサイズ依存化。
