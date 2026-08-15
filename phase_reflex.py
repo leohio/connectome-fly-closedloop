@@ -261,9 +261,21 @@ def fly_trial(G_reflex, T=2.0, PH0=None, shuffle=None, shuffle_seed=0,
             # 位相前進(負dv)→張力増 (Tu & Dickinson) を全チャネルに適用
             adv = lambda mu: -dphi.get(mu, 0.0)
             u_hg = u_iii = 0.0
+            drL = drR = gdL = gdR = 0.0
             if decode == "b1":
                 ampL = np.clip(1.0 + G_reflex*adv("b1_L"), 0.7, 1.4)
                 ampR = np.clip(1.0 + G_reflex*adv("b1_R"), 0.7, 1.4)
+            elif decode == "hinge":
+                # ヒンジ写像: 位相→タイミング/伝達 (線形角度変調は使わない)
+                ampL = ampR = 1.0
+                sL = adv("b1_L") + adv("b2_L") - adv("b3_L") - adv("i1_L")
+                sR = adv("b1_R") + adv("b2_R") - adv("b3_R") - adv("i1_R")
+                gdL = float(np.clip(G_multi["cl"]*sL, -0.4, 0.4))   # クラッチ
+                gdR = float(np.clip(G_multi["cl"]*sR, -0.4, 0.4))
+                iiL = np.mean([adv("iii1_L"), adv("iii3_L")])
+                iiR = np.mean([adv("iii1_R"), adv("iii3_R")])
+                drL = float(np.clip(G_multi["rot"]*iiL, -0.4, 0.4))  # 回転タイミング
+                drR = float(np.clip(G_multi["rot"]*iiR, -0.4, 0.4))
             else:
                 # 振幅: 基礎骨片筋(b1,b2)↑ − 拮抗筋(b3,i1)↓ (Melis線形蒸留)
                 sL = adv("b1_L") + adv("b2_L") - adv("b3_L") - adv("i1_L")
@@ -291,13 +303,16 @@ def fly_trial(G_reflex, T=2.0, PH0=None, shuffle=None, shuffle_seed=0,
                 env0 = min(tt/0.03, 1.0)
                 ph2 = 2*np.pi*Pw["freq"]*tt
                 s = np.sin(ph2); kk = max(Pw["sharp"],1e-3)
-                rot = np.tanh(kk*np.cos(ph2+Pw["phase"]))/np.tanh(kk)
-                eL = env0*amp*ampL; eR = env0*amp*ampR
+                rotL = np.tanh(kk*np.cos(ph2+Pw["phase"]+drL))/np.tanh(kk)
+                rotR = np.tanh(kk*np.cos(ph2+Pw["phase"]+drR))/np.tanh(kk)
+                down = 1.0 if np.cos(ph2) < 0 else 0.0   # 打ち下ろし半周期
+                eL = env0*amp*ampL*(1.0 + gdL*down)
+                eR = env0*amp*ampR*(1.0 + gdR*down)
                 d.ctrl[:] = 0
                 d.ctrl[aid["wing_yaw_left"]] = eL*(Pw["yaw_amp"]*s + u[1] + u[2] + u_hg)
                 d.ctrl[aid["wing_yaw_right"]] = eR*(Pw["yaw_amp"]*s + u[1] - u[2] + u_hg)
-                d.ctrl[aid["wing_pitch_left"]] = eL*(-Pw["pitch_amp"]*rot+Pw["pitch_bias"]+u[3]+u[4]+u_iii)
-                d.ctrl[aid["wing_pitch_right"]] = eR*(-Pw["pitch_amp"]*rot+Pw["pitch_bias"]+u[3]-u[4]+u_iii)
+                d.ctrl[aid["wing_pitch_left"]] = eL*(-Pw["pitch_amp"]*rotL+Pw["pitch_bias"]+u[3]+u[4]+u_iii)
+                d.ctrl[aid["wing_pitch_right"]] = eR*(-Pw["pitch_amp"]*rotR+Pw["pitch_bias"]+u[3]-u[4]+u_iii)
                 d.ctrl[aid["wing_roll_left"]] = eL*Pw["roll_amp"]*np.sin(2*ph2)
                 d.ctrl[aid["wing_roll_right"]] = eR*Pw["roll_amp"]*np.sin(2*ph2)
                 mujoco.mj_step(m, d)

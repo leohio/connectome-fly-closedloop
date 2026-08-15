@@ -100,7 +100,92 @@ def mode_main():
     np.savez("outputs/multi_main.npz", rows=np.array(rows, dtype=object))
 
 
+def mode_hsweep():
+    """統合21: ヒンジデコードのゲイン粗探索 (REAL, n=3)"""
+    PR.C_PHASE = 0.012
+    cal = calibrate()
+    PH0 = {mu: v[1] for mu, v in cal.items()}
+    print(f"較正チャネル数: {len(PH0)}", flush=True)
+    for Gm in [dict(rot=2.0, cl=1.5), dict(rot=4.0, cl=3.0),
+               dict(rot=-2.0, cl=1.5), dict(rot=-4.0, cl=3.0)]:
+        ll = []
+        for rep in range(3):
+            s, up, nst, upl = PR.fly_trial(0.0, PH0=PH0, decode="hinge",
+                                           G_multi=Gm)
+            ll.append(upl)
+            print(f"  rot={Gm['rot']} cl={Gm['cl']} rep{rep}: "
+                  f"生存{s:.2f}s 後半{upl:+.3f} st={nst}", flush=True)
+        print(f"Gm={Gm}: 後半直立度 {np.mean(ll):+.3f}±{np.std(ll):.3f}",
+              flush=True)
+
+
+def mode_hmain():
+    """統合21本実験: ヒンジデコード n=8 対照つき"""
+    PR.C_PHASE = 0.012
+    Gm = eval(sys.argv[2]) if len(sys.argv) > 2 else dict(rot=4.0, cl=3.0)
+    NREP = 8
+    print(f"=== 統合21本実験 hinge (n={NREP}, Gm={Gm}) ===", flush=True)
+    s0, up0, _, upl0 = PR.fly_trial(0.0)
+    print(f"{'反射OFF':14s} 生存{s0:.2f}s 後半直立度{upl0:+.3f}", flush=True)
+    rows = [("OFF", [s0], [upl0], [0])]
+    conds = [("REAL", None, 0, False), ("SCRAM", None, 0, True),
+             ("SHUF-HAL s1", "hal", 1, False),
+             ("SHUF-ALL s0", "all", 0, False)]
+    for name, sh, seed, scram in conds:
+        cal = calibrate(shuffle=sh, seed=seed)
+        PH0 = {mu: v[1] for mu, v in cal.items()}
+        if scram:
+            rng = np.random.default_rng(7)
+            keys = sorted(PH0)
+            vals = rng.permutation([PH0[k] for k in keys])
+            PH0 = dict(zip(keys, vals))
+        ss, ll, bb = [], [], []
+        for rep in range(NREP):
+            s, up, nst, upl = PR.fly_trial(0.0, PH0=PH0, decode="hinge",
+                                           G_multi=Gm, shuffle=sh,
+                                           shuffle_seed=seed)
+            ss.append(s); ll.append(upl); bb.append(nst)
+            print(f"  {name} rep{rep}: 生存{s:.2f}s 後半{upl:+.3f} st={nst}",
+                  flush=True)
+        sem = np.std(ll) / np.sqrt(len(ll))
+        print(f"{name:14s} 生存{np.mean(ss):.2f}±{np.std(ss):.2f}s "
+              f"後半直立度{np.mean(ll):+.3f}±SEM{sem:.3f} "
+              f"st={np.mean(bb):.0f}", flush=True)
+        rows.append((name, ss, ll, bb))
+    np.savez("outputs/hinge_main.npz", rows=np.array(rows, dtype=object))
+
+
+def mode_hpower():
+    """統合21判定用の追加検出力: REAL vs SCRAM のみ n=16 (hmainのn=8と合算してn=24)"""
+    PR.C_PHASE = 0.012
+    Gm = dict(rot=-4.0, cl=3.0)
+    NREP = 16
+    print(f"=== hinge 検出力追加 (REAL/SCRAM n={NREP}, Gm={Gm}) ===", flush=True)
+    rows = []
+    for name, scram in [("REAL", False), ("SCRAM", True)]:
+        cal = calibrate()
+        PH0 = {mu: v[1] for mu, v in cal.items()}
+        if scram:
+            rng = np.random.default_rng(7)
+            keys = sorted(PH0)
+            vals = rng.permutation([PH0[k] for k in keys])
+            PH0 = dict(zip(keys, vals))
+        ss, ll, bb = [], [], []
+        for rep in range(NREP):
+            s, up, nst, upl = PR.fly_trial(0.0, PH0=PH0, decode="hinge",
+                                           G_multi=Gm)
+            ss.append(s); ll.append(upl); bb.append(nst)
+            print(f"  {name} rep{rep}: 生存{s:.2f}s 後半{upl:+.3f} st={nst}",
+                  flush=True)
+        sem = np.std(ll) / np.sqrt(len(ll))
+        print(f"{name:6s} 後半直立度{np.mean(ll):+.3f}±SEM{sem:.3f} "
+              f"生存{np.mean(ss):.3f}s", flush=True)
+        rows.append((name, ss, ll, bb))
+    np.savez("outputs/hinge_power.npz", rows=np.array(rows, dtype=object))
+
+
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "prc_full"
-    {"prc_full": mode_prc_full, "sweep": mode_sweep,
-     "main": mode_main}[mode]()
+    {"prc_full": mode_prc_full, "sweep": mode_sweep, "main": mode_main,
+     "hsweep": mode_hsweep, "hmain": mode_hmain,
+     "hpower": mode_hpower}[mode]()
