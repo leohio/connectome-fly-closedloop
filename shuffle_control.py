@@ -78,10 +78,10 @@ def mode_fly():
             print(f"{name:12s} b1無発火 → 反射は構造的に不能", flush=True)
             PH0 = None
         else:
-            PH0 = {"L": vL[1] if vL else 0.5, "R": vR[1] if vR else 0.5}
-        s, up, nb1 = PR.fly_trial(G, PH0=PH0, shuffle=sh, shuffle_seed=seed)
+            PH0 = {"b1_L": vL[1] if vL else 0.5, "b1_R": vR[1] if vR else 0.5}
+        s, up, nb1, _ = PR.fly_trial(G, PH0=PH0, shuffle=sh, shuffle_seed=seed)
         ph_s = ("-" if PH0 is None
-                else f"PH0=({PH0['L']:.2f},{PH0['R']:.2f})")
+                else f"PH0=({PH0['b1_L']:.2f},{PH0['b1_R']:.2f})")
         print(f"{name:12s} 生存{s:.2f}s 直立度{up:+.2f} b1spk={nb1} {ph_s}",
               flush=True)
         out.append((name, s, up, nb1))
@@ -101,7 +101,7 @@ def mode_fly2():
     for name, sh, seed in CONDS:
         cal = PR.prc_run(shuffle=sh, shuffle_seed=seed, omegas=(0.0,), T=0.4)
         vL = cal.get((0.0, "b1_L")); vR = cal.get((0.0, "b1_R"))
-        PH0 = {"L": vL[1] if vL else 0.5, "R": vR[1] if vR else 0.5}
+        PH0 = {"b1_L": vL[1] if vL else 0.5, "b1_R": vR[1] if vR else 0.5}
         ss, uu, bb = [], [], []
         for rep in range(NREP):
             s, up, nb1, _ = PR.fly_trial(G, PH0=PH0, shuffle=sh,
@@ -131,7 +131,7 @@ def mode_fly3():
     for name, sh, seed in conds:
         cal = PR.prc_run(shuffle=sh, shuffle_seed=seed, omegas=(0.0,), T=0.4)
         vL = cal.get((0.0, "b1_L")); vR = cal.get((0.0, "b1_R"))
-        PH0 = {"L": vL[1] if vL else 0.5, "R": vR[1] if vR else 0.5}
+        PH0 = {"b1_L": vL[1] if vL else 0.5, "b1_R": vR[1] if vR else 0.5}
         ss, ll, bb = [], [], []
         for rep in range(NREP):
             s, up, nb1, upl = PR.fly_trial(G, PH0=PH0, shuffle=sh,

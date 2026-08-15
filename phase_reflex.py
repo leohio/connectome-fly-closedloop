@@ -152,8 +152,7 @@ def prc_run(shuffle=None, shuffle_seed=0, omegas=(0.0, 20.0, -20.0), T=0.5):
             pg.rates = hal_rates(t, (om_r, 0, 0), pref, side) * Hz
             net.run(DT_N*1000*_ms)
         trains = mon.spike_trains()
-        for mu in ["b1_L", "b1_R"]:
-            if mu not in st_idx: continue
+        for mu in sorted(st_idx):
             st = np.array(trains[st_idx[mu]]/_ms)/1000.0
             st = st[st > base_t + 0.1]
             phases = np.mod(st*WBF, 1.0)
@@ -204,19 +203,23 @@ def _fly_env():
     return _FLY_CACHE
 
 
-def fly_trial(G_reflex, T=2.0, PH0=None, shuffle=None, shuffle_seed=0):
-    """0.1ms連成飛行1試行。(生存s, 直立度, b1スパイク数) を返す。
-    PH0: 基準位相 {"L":.., "R":..} (条件ごとにω=0で較正して渡す)"""
+def fly_trial(G_reflex, T=2.0, PH0=None, shuffle=None, shuffle_seed=0,
+              decode="b1", G_multi=None):
+    """0.1ms連成飛行1試行。(生存s, 直立度, 操舵スパイク数, 後半直立度) を返す。
+    PH0: 基準位相 {"b1_L":.., ...} 筋チャネル名キー (条件ごとにω=0較正)
+    decode="b1": b1振幅のみ(統合18互換) / "multi": 全操舵筋→運動学チャネル
+    G_multi: dict(amp=, hg=, iii=) multiデコードのゲイン"""
     from brian2 import ms as _ms
     env = _fly_env()
     K_att, b_pol, U_SCALE = env["K_att"], env["b_pol"], env["U_SCALE"]
     Pw, Q0, ZT_W, m = env["Pw"], env["Q0"], env["ZT_W"], env["m"]
     if PH0 is None:
-        PH0 = {"L": 0.210, "R": 0.954}
+        PH0 = {"b1_L": 0.210, "b1_R": 0.954}
     if True:
         net, mon, pg, pref, side, st_idx, n = setup(
             shuffle=shuffle, shuffle_seed=shuffle_seed)
-        i_b1L = st_idx.get("b1_L"); i_b1R = st_idx.get("b1_R")
+        chans = [mu for mu in st_idx if mu in PH0]
+        mn_of = {int(st_idx[mu]): mu for mu in chans}
         d = mujoco.MjData(m); dtp = m.opt.timestep
         aid = {nm: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, nm)
                for nm in ["wing_yaw_left","wing_roll_left","wing_pitch_left",
@@ -224,9 +227,9 @@ def fly_trial(G_reflex, T=2.0, PH0=None, shuffle=None, shuffle_seed=0):
         mujoco.mj_resetData(m, d); d.qpos[2] = 12.0; d.qpos[3:7] = Q0
         mujoco.mj_forward(m, d)
         R = np.zeros(9)
-        # b1位相の追跡 (基準位相PH0は条件ごとにω=0で較正した値を使用)
-        last_ph = {"L": None, "R": None}
-        dphi = {"L": 0.0, "R": 0.0}
+        # 操舵筋スパイク位相の追跡 (基準位相PH0は条件ごとにω=0較正値)
+        last_ph = {mu: None for mu in chans}
+        dphi = {mu: 0.0 for mu in chans}
         prev_nsp = 0
         n_b1 = 0
         ups, n_alive = [], 0
@@ -242,21 +245,38 @@ def fly_trial(G_reflex, T=2.0, PH0=None, shuffle=None, shuffle_seed=0):
                 ii = np.array(mon.i[prev_nsp:nsp])
                 tt_s = np.array(mon.t[prev_nsp:nsp]/_ms)/1000.0
                 for iN, tS in zip(ii, tt_s):
-                    for sd, iB in (("L", i_b1L), ("R", i_b1R)):
-                        if iB is not None and iN == iB:
-                            last_ph[sd] = float(np.mod(tS*WBF, 1.0))
-                            n_b1 += 1
+                    mu = mn_of.get(int(iN))
+                    if mu is not None:
+                        last_ph[mu] = float(np.mod(tS*WBF, 1.0))
+                        n_b1 += 1
                 prev_nsp = nsp
-            for sd in ("L","R"):
-                dphi[sd] *= 0.998    # リーク τ≈50ms: b1が沈黙すれば反射は消灯
+            for mu in dphi:
+                dphi[mu] *= 0.998    # リーク τ≈50ms: 沈黙チャネルは消灯
             if t >= 0.12:
-                for sd in ("L","R"):
-                    if last_ph[sd] is not None:
-                        dv = (last_ph[sd] - PH0[sd] + 0.5) % 1.0 - 0.5
-                        dphi[sd] = 0.5*dphi[sd] + 0.5*dv     # スパイク毎に更新
-                        last_ph[sd] = None                   # 消費済みマーク
-            ampL = np.clip(1.0 + G_reflex*(-dphi["L"]), 0.7, 1.4)   # 位相前進(負dv)→振幅増
-            ampR = np.clip(1.0 + G_reflex*(-dphi["R"]), 0.7, 1.4)
+                for mu, lp in last_ph.items():
+                    if lp is not None:
+                        dv = (lp - PH0[mu] + 0.5) % 1.0 - 0.5
+                        dphi[mu] = 0.5*dphi[mu] + 0.5*dv     # スパイク毎に更新
+                        last_ph[mu] = None                   # 消費済みマーク
+            # 位相前進(負dv)→張力増 (Tu & Dickinson) を全チャネルに適用
+            adv = lambda mu: -dphi.get(mu, 0.0)
+            u_hg = u_iii = 0.0
+            if decode == "b1":
+                ampL = np.clip(1.0 + G_reflex*adv("b1_L"), 0.7, 1.4)
+                ampR = np.clip(1.0 + G_reflex*adv("b1_R"), 0.7, 1.4)
+            else:
+                # 振幅: 基礎骨片筋(b1,b2)↑ − 拮抗筋(b3,i1)↓ (Melis線形蒸留)
+                sL = adv("b1_L") + adv("b2_L") - adv("b3_L") - adv("i1_L")
+                sR = adv("b1_R") + adv("b2_R") - adv("b3_R") - adv("i1_R")
+                ampL = np.clip(1.0 + G_multi["amp"]*sL, 0.7, 1.4)
+                ampR = np.clip(1.0 + G_multi["amp"]*sR, 0.7, 1.4)
+                # ストローク中心: hg群(第4腋骨片筋), 迎角: iii群(第3腋骨片筋)
+                hg = 0.5*(np.mean([adv(f"hg{k}_L") for k in (1, 2, 3, 4)])
+                          + np.mean([adv(f"hg{k}_R") for k in (1, 2, 3, 4)]))
+                i3 = 0.5*(np.mean([adv("iii1_L"), adv("iii3_L")])
+                          + np.mean([adv("iii1_R"), adv("iii3_R")]))
+                u_hg = float(np.clip(G_multi["hg"]*hg, -0.3, 0.3))
+                u_iii = float(np.clip(G_multi["iii"]*i3, -0.25, 0.25))
             # 姿勢のみESポリシー (物理ステップ毎)
             for kp in range(int(DT_N/dtp)):
                 tt = t + kp*dtp
@@ -274,10 +294,10 @@ def fly_trial(G_reflex, T=2.0, PH0=None, shuffle=None, shuffle_seed=0):
                 rot = np.tanh(kk*np.cos(ph2+Pw["phase"]))/np.tanh(kk)
                 eL = env0*amp*ampL; eR = env0*amp*ampR
                 d.ctrl[:] = 0
-                d.ctrl[aid["wing_yaw_left"]] = eL*(Pw["yaw_amp"]*s + u[1] + u[2])
-                d.ctrl[aid["wing_yaw_right"]] = eR*(Pw["yaw_amp"]*s + u[1] - u[2])
-                d.ctrl[aid["wing_pitch_left"]] = eL*(-Pw["pitch_amp"]*rot+Pw["pitch_bias"]+u[3]+u[4])
-                d.ctrl[aid["wing_pitch_right"]] = eR*(-Pw["pitch_amp"]*rot+Pw["pitch_bias"]+u[3]-u[4])
+                d.ctrl[aid["wing_yaw_left"]] = eL*(Pw["yaw_amp"]*s + u[1] + u[2] + u_hg)
+                d.ctrl[aid["wing_yaw_right"]] = eR*(Pw["yaw_amp"]*s + u[1] - u[2] + u_hg)
+                d.ctrl[aid["wing_pitch_left"]] = eL*(-Pw["pitch_amp"]*rot+Pw["pitch_bias"]+u[3]+u[4]+u_iii)
+                d.ctrl[aid["wing_pitch_right"]] = eR*(-Pw["pitch_amp"]*rot+Pw["pitch_bias"]+u[3]-u[4]+u_iii)
                 d.ctrl[aid["wing_roll_left"]] = eL*Pw["roll_amp"]*np.sin(2*ph2)
                 d.ctrl[aid["wing_roll_right"]] = eR*Pw["roll_amp"]*np.sin(2*ph2)
                 mujoco.mj_step(m, d)
