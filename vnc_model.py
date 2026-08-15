@@ -44,7 +44,7 @@ def build_arrays():
 
 
 def make_network(stim_bodyids, r_stim_hz=150, sensory_bodyids=None,
-                 excitability=None):
+                 excitability=None, tonic_mv=None):
     """Brian2 ネットワークを構築して返す。
 
     sensory_bodyids を渡すと、その各ニューロンに1対1のPoissonGroupを接続して
@@ -53,6 +53,8 @@ def make_network(stim_bodyids, r_stim_hz=150, sensory_bodyids=None,
 
     excitability: {bodyId: 倍率} — そのニューロンへの入力シナプス重みを
     一括スケールする(入力抵抗の差のモデル。Azevedo 2020: 小MNほど高抵抗)。
+    tonic_mv: {bodyId: mV} — 内因性の緊張性脱分極。7mV超で自発発火
+    (9mV ≈ 30Hz)。slow MNの緊張性発火のモデル (Azevedo 2020)。
     """
     from brian2 import (NeuronGroup, Synapses, PoissonInput, PoissonGroup,
                         SpikeMonitor, Network, mV, ms, Hz)
@@ -60,9 +62,10 @@ def make_network(stim_bodyids, r_stim_hz=150, sensory_bodyids=None,
     idx = {b: i for i, b in enumerate(ids)}
     n = len(ids)
     eqs = """
-    dv/dt = (v_0 - v + g) / t_mbr : volt (unless refractory)
+    dv/dt = (v_0 - v + g + itn) / t_mbr : volt (unless refractory)
     dg/dt = -g / tau : volt (unless refractory)
     rfc : second
+    itn : volt
     """
     ns = dict(v_0=PARAMS["v_0"] * mV, t_mbr=PARAMS["t_mbr"] * ms,
               tau=PARAMS["tau"] * ms, v_th=PARAMS["v_th"] * mV,
@@ -73,6 +76,11 @@ def make_network(stim_bodyids, r_stim_hz=150, sensory_bodyids=None,
     neu.v = PARAMS["v_0"] * mV
     neu.g = 0 * mV
     neu.rfc = PARAMS["t_rfc"] * ms
+    neu.itn = 0 * mV
+    if tonic_mv:
+        for bb, mv in tonic_mv.items():
+            if bb in idx:
+                neu.itn[idx[bb]] = mv * mV
     syn = Synapses(neu, neu, "w : volt", on_pre="g += w",
                    delay=PARAMS["t_dly"] * ms, namespace=ns, name="syn")
     syn.connect(i=pre, j=post)

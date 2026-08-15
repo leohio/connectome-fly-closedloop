@@ -51,10 +51,13 @@ def build_measured_pools(conns_path="../vnc-connectome/downloads/traced-connecti
 
 
 E_MAX = 10.0   # 最小MNのPSP倍率 (入力抵抗勾配のモデル)
+ITN_MAX = 16.0  # 最小MNの緊張性脱分極 [mV]
+TONIC_CUTOFF = 0.45   # サイズ下位45%のみ緊張性 (slowのみ、fastは静止の実測)
 
 def main():
     import sys
     use_gradient = "--gradient" in sys.argv
+    use_tonic = "--tonic" in sys.argv
     from flygym import Fly, Camera, SingleFlySimulation
 
     sn_by_leg = sensory_pools()
@@ -63,10 +66,13 @@ def main():
     mp = build_measured_pools()
     excit = {int(r.bodyid): float(E_MAX ** (1.0 - r.pct))
              for _, r in mp.iterrows()} if use_gradient else None
-    print("excitability gradient:", "ON (E_MAX=%.1f)" % E_MAX if use_gradient else "OFF")
+    tonic = {int(r.bodyid): float(ITN_MAX * max(0.0, (TONIC_CUTOFF - r.pct) / TONIC_CUTOFF))
+             for _, r in mp.iterrows()} if use_tonic else None
+    print("excitability gradient:", "ON" if use_gradient else "OFF",
+          "/ tonic firing:", "ON" if use_tonic else "OFF")
     net, mon, ids, idx, pg = vnc_model.make_network(
         vnc_model.MDN_BODYIDS, r_stim_hz=MDN_RATE, sensory_bodyids=sn_all,
-        excitability=excit)
+        excitability=excit, tonic_mv=tonic)
     kept = [b for b in sn_all if b in idx]
     pos_of = {b: i for i, b in enumerate(kept)}
     leg_slices = {leg: np.array([pos_of[b] for b in bs if b in pos_of])
@@ -164,7 +170,7 @@ def main():
                   f"z={obs['fly'][0][2]:.2f} stance={stance} "
                   f"Fmax={F_mn.max():.1f}uN")
 
-    suffix = "_gradient" if use_gradient else ""
+    suffix = ("_gradient" if use_gradient else "") + ("_tonic" if use_tonic else "")
     cam.save_video(f"outputs/measured_interface{suffix}.mp4")
     from brian2 import ms as _ms
     np.savez(f"outputs/measured_log{suffix}.npz",
