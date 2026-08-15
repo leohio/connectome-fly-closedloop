@@ -26,10 +26,10 @@ DNT = ["DNa10", "DNa08", "DNa04", "DNa05", "DNp26", "DNp03", "DNb01",
        "DNb04", "DNg04", "DNp18"]
 P = dict(v_0=-52, v_rst=-52, v_th=-45, t_mbr=20, tau=5, t_rfc=2.2,
          t_dly=1.8, w_syn=0.275, f_poi=250)
-R0_OC = 60.0        # オセリ視細胞の基準レート
-K_TILT = 2.5        # 傾き→レート変調 [1/rad]
+R0_OC = 150.0        # オセリ視細胞の基準レート
+K_TILT = 4.0        # 傾き→レート変調 [1/rad]
 R0_VS = 40.0
-K_RATE = 0.05       # 回転レート→VS/HS変調 [s/rad]
+K_RATE = 0.0       # 回転レート→VS/HS変調 [s/rad]
 W_MIN = 3
 
 
