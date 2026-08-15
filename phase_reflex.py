@@ -32,7 +32,9 @@ C_GAIN = 0.01            # ω→ゲイン変調
 STEER = ["b1", "b2", "b3", "i1", "i2", "iii1", "iii3", "hg1", "hg2", "hg3", "hg4"]
 
 
-def build_subnet():
+def build_subnet(shuffle=None, shuffle_seed=0):
+    """shuffle=None: 実配線 / "all": 全エッジのpost端を置換(次数保存) /
+    "hal": ハルテア求心性の出力エッジのみpost端を置換"""
     ids_all, pre, post, w = vnc_model.build_arrays()
     sub = np.load("outputs/subcircuit_ids.npy")
     subset = set(int(s) for s in sub)
@@ -44,6 +46,21 @@ def build_subnet():
     post2 = np.array([remap[p] for p in post[emask]])
     w2 = w[emask]
     idx = {int(b): i for i, b in enumerate(ids)}
+    if shuffle is not None:
+        rng = np.random.default_rng(shuffle_seed)
+        post2 = post2.copy()
+        if shuffle == "all":
+            post2 = rng.permutation(post2)
+        elif shuffle == "hal":
+            props = pd.read_feather("neuron-properties.feather")
+            hal = props[(props["class"] == "sensory neuron")
+                        & (props.modality == "proprioceptive")
+                        & props.entryNerve.isin(["DMetaN_L", "DMetaN_R"])]
+            hset = np.array([idx[int(b)] for b in hal.bodyId if int(b) in idx])
+            hmask = np.isin(pre2, hset)
+            post2[hmask] = rng.permutation(post2[hmask])
+        else:
+            raise ValueError(shuffle)
     n = len(ids)
     P = vnc_model.PARAMS
     ns = dict(v_0=P["v_0"]*mV, t_mbr=P["t_mbr"]*ms, tau=P["tau"]*ms,
@@ -66,7 +83,7 @@ def build_subnet():
     return neu, syn, ids, idx
 
 
-def setup(gyro=True):
+def setup(gyro=True, shuffle=None, shuffle_seed=0):
     mns = pd.read_csv("../vnc-connectome/downloads/elife-96084-supp3-v1.csv",
                       encoding="latin1")
     wm = mns[mns.subclass == "wm"]
@@ -78,7 +95,7 @@ def setup(gyro=True):
     hal = props[(props["class"] == "sensory neuron")
                 & (props.modality == "proprioceptive")
                 & props.entryNerve.isin(["DMetaN_L", "DMetaN_R"])]
-    neu, syn, ids, idx = build_subnet()
+    neu, syn, ids, idx = build_subnet(shuffle=shuffle, shuffle_seed=shuffle_seed)
     # 動力筋: 緊張性 / 操舵MN: 高興奮性 (入力シナプスを4倍)
     for b in power:
         if int(b) in idx:
@@ -121,16 +138,15 @@ def hal_rates(t, omega, pref, side):
     return np.clip(R_PEAK * np.exp(KAPPA*(np.cos(dphi)-1.0)) * gain, 0, 8000)
 
 
-def mode_prc():
+def prc_run(shuffle=None, shuffle_seed=0, omegas=(0.0, 20.0, -20.0), T=0.5):
+    """条件付きPRC測定。{(ω, 筋): (rate, mean_phase, R)} を返す。"""
     from brian2 import ms as _ms
-    net, mon, pg, pref, side, st_idx, n = setup()
-    print(f"subnet {n} neurons")
+    net, mon, pg, pref, side, st_idx, n = setup(
+        shuffle=shuffle, shuffle_seed=shuffle_seed)
     results = {}
-    for om_r in [0.0, 20.0, -20.0]:
-        t0 = float(mon.t[-1]/_ms)/1000.0 if len(mon.t) else 0.0
-        T = 0.5
+    for om_r in omegas:
+        base_t = float(mon.t[-1]/_ms)/1000.0 if len(mon.t) else 0.0
         steps = int(T/DT_N)
-        base_t = t0
         for k in range(steps):
             t = base_t + k*DT_N
             pg.rates = hal_rates(t, (om_r, 0, 0), pref, side) * Hz
@@ -144,7 +160,12 @@ def mode_prc():
             if len(phases) > 3:
                 mean_ph = np.angle(np.mean(np.exp(2j*np.pi*phases)))/(2*np.pi) % 1.0
                 Rv = np.abs(np.mean(np.exp(2j*np.pi*phases)))
-                results[(om_r, mu)] = (len(st)/ (T-0.1), mean_ph, Rv)
+                results[(om_r, mu)] = (len(st)/(T-0.1), mean_ph, Rv)
+    return results
+
+
+def mode_prc():
+    results = prc_run()
     print("\n=== b1 位相応答 (発火率, 平均位相, 位相固定度R) ===")
     for (om, mu), (r, mph, Rv) in sorted(results.items()):
         print(f"ω_roll={om:+5.0f}: {mu}  {r:6.1f}Hz  位相{mph:.3f}  R={Rv:.2f}")
@@ -155,9 +176,13 @@ if __name__ == "__main__":
         mode_prc()
 
 
-def mode_fly():
-    """0.1ms連成: 姿勢のみES + b1位相デコード反射の飛行テスト"""
-    from brian2 import ms as _ms
+_FLY_CACHE = {}
+
+
+def _fly_env():
+    """ESポリシー・翅運動学・MuJoCoモデルの遅延ロード(1回だけ)"""
+    if _FLY_CACHE:
+        return _FLY_CACHE
     import os
     sys.path.insert(0, "../fly-flight-sim")
     import fly_flight2 as FF
@@ -171,13 +196,27 @@ def mode_fly():
     TH = np.deg2rad(47.5); Q0 = [np.cos(-TH/2), 0, np.sin(-TH/2), 0]
     _R0 = np.zeros(9); mujoco.mju_quat2Mat(_R0, np.array(Q0))
     ZT_W = np.array([_R0[2], _R0[5], _R0[8]])
+    cwd = os.getcwd(); os.chdir("../fly-flight-sim")
+    try: m = FF.build_model()
+    finally: os.chdir(cwd)
+    _FLY_CACHE.update(K_att=K_att, b_pol=b_pol, U_SCALE=U_SCALE, Pw=Pw,
+                      Q0=Q0, ZT_W=ZT_W, m=m)
+    return _FLY_CACHE
 
-    def trial(G_reflex, T=2.0, warm_T=0.35):
-        net, mon, pg, pref, side, st_idx, n = setup()
+
+def fly_trial(G_reflex, T=2.0, PH0=None, shuffle=None, shuffle_seed=0):
+    """0.1ms連成飛行1試行。(生存s, 直立度, b1スパイク数) を返す。
+    PH0: 基準位相 {"L":.., "R":..} (条件ごとにω=0で較正して渡す)"""
+    from brian2 import ms as _ms
+    env = _fly_env()
+    K_att, b_pol, U_SCALE = env["K_att"], env["b_pol"], env["U_SCALE"]
+    Pw, Q0, ZT_W, m = env["Pw"], env["Q0"], env["ZT_W"], env["m"]
+    if PH0 is None:
+        PH0 = {"L": 0.210, "R": 0.954}
+    if True:
+        net, mon, pg, pref, side, st_idx, n = setup(
+            shuffle=shuffle, shuffle_seed=shuffle_seed)
         i_b1L = st_idx.get("b1_L"); i_b1R = st_idx.get("b1_R")
-        cwd = os.getcwd(); os.chdir("../fly-flight-sim")
-        try: m = FF.build_model()
-        finally: os.chdir(cwd)
         d = mujoco.MjData(m); dtp = m.opt.timestep
         aid = {nm: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, nm)
                for nm in ["wing_yaw_left","wing_roll_left","wing_pitch_left",
@@ -185,11 +224,11 @@ def mode_fly():
         mujoco.mj_resetData(m, d); d.qpos[2] = 12.0; d.qpos[3:7] = Q0
         mujoco.mj_forward(m, d)
         R = np.zeros(9)
-        # b1位相の追跡 (基準位相はPRC実験の実測値を定数で使用)
+        # b1位相の追跡 (基準位相PH0は条件ごとにω=0で較正した値を使用)
         last_ph = {"L": None, "R": None}
-        PH0 = {"L": 0.210, "R": 0.954}
         dphi = {"L": 0.0, "R": 0.0}
         prev_nsp = 0
+        n_b1 = 0
         ups, n_alive = [], 0
         n_steps = int(T/DT_N)
         for k in range(n_steps):
@@ -206,12 +245,16 @@ def mode_fly():
                     for sd, iB in (("L", i_b1L), ("R", i_b1R)):
                         if iB is not None and iN == iB:
                             last_ph[sd] = float(np.mod(tS*WBF, 1.0))
+                            n_b1 += 1
                 prev_nsp = nsp
+            for sd in ("L","R"):
+                dphi[sd] *= 0.998    # リーク τ≈50ms: b1が沈黙すれば反射は消灯
             if t >= 0.12:
                 for sd in ("L","R"):
                     if last_ph[sd] is not None:
                         dv = (last_ph[sd] - PH0[sd] + 0.5) % 1.0 - 0.5
-                        dphi[sd] = 0.9*dphi[sd] + 0.1*dv     # τ≈1msの平滑
+                        dphi[sd] = 0.5*dphi[sd] + 0.5*dv     # スパイク毎に更新
+                        last_ph[sd] = None                   # 消費済みマーク
             ampL = np.clip(1.0 + G_reflex*(-dphi["L"]), 0.7, 1.4)   # 位相前進(負dv)→振幅増
             ampR = np.clip(1.0 + G_reflex*(-dphi["R"]), 0.7, 1.4)
             # 姿勢のみESポリシー (物理ステップ毎)
@@ -241,16 +284,22 @@ def mode_fly():
             if not np.isfinite(d.qpos[2]) or d.qpos[2] < 0.5:
                 break
             mujoco.mju_quat2Mat(R, d.qpos[3:7])
-            ups.append(np.array([R[2],R[5],R[8]]) @ ZT_W)
+            ups.append((t, np.array([R[2],R[5],R[8]]) @ ZT_W))
             n_alive = k+1
-        return n_alive*DT_N, float(np.mean(ups)) if ups else 0
+        up_all = float(np.mean([u for _, u in ups])) if ups else 0
+        late = [u for tt2, u in ups if tt2 >= 0.12]   # 反射作動区間のみ
+        up_late = float(np.mean(late)) if late else 0
+        return n_alive*DT_N, up_all, n_b1, up_late
 
-    import itertools
+
+def mode_fly():
+    """0.1ms連成: 姿勢のみES + b1位相デコード反射の飛行テスト(実配線sweep)"""
     global C_PHASE
     for g, cp in [(6.0, 0.004), (6.0, 0.008), (12.0, 0.008), (20.0, 0.012)]:
         C_PHASE = cp
-        s, up = trial(g)
-        print(f"G={g} C_PHASE={cp}: 生存{s:.2f}s 直立度{up:.2f}", flush=True)
+        s, up, nb1, upl = fly_trial(g)
+        print(f"G={g} C_PHASE={cp}: 生存{s:.2f}s 直立度{up:.2f} "
+              f"後半{upl:.2f} b1={nb1}", flush=True)
 
 
 if __name__ == "__main__":
