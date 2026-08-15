@@ -43,12 +43,16 @@ def build_arrays():
     return ids, pre, post, w
 
 
-def make_network(stim_bodyids, r_stim_hz=150, sensory_bodyids=None):
+def make_network(stim_bodyids, r_stim_hz=150, sensory_bodyids=None,
+                 excitability=None):
     """Brian2 ネットワークを構築して返す。
 
     sensory_bodyids を渡すと、その各ニューロンに1対1のPoissonGroupを接続して
     返す(戻り値5番目)。pg.rates を外から書き換えることで時変の感覚入力を
     注入できる(閉ループ用)。
+
+    excitability: {bodyId: 倍率} — そのニューロンへの入力シナプス重みを
+    一括スケールする(入力抵抗の差のモデル。Azevedo 2020: 小MNほど高抵抗)。
     """
     from brian2 import (NeuronGroup, Synapses, PoissonInput, PoissonGroup,
                         SpikeMonitor, Network, mV, ms, Hz)
@@ -72,7 +76,14 @@ def make_network(stim_bodyids, r_stim_hz=150, sensory_bodyids=None):
     syn = Synapses(neu, neu, "w : volt", on_pre="g += w",
                    delay=PARAMS["t_dly"] * ms, namespace=ns, name="syn")
     syn.connect(i=pre, j=post)
-    syn.w = w * PARAMS["w_syn"] * mV
+    w_eff = w * PARAMS["w_syn"]
+    if excitability:
+        fac = np.ones(n)
+        for bb, f in excitability.items():
+            if bb in idx:
+                fac[idx[bb]] = f
+        w_eff = w_eff * fac[post]
+    syn.w = w_eff * mV
     pois = []
     for b in stim_bodyids:
         i = idx[b]

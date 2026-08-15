@@ -28,18 +28,18 @@ K_CAL = 0.012          # 較正定数 [rad/μN] (唯一の自由パラメータ)
 GAIN_JOINT = {"Coxa": 1.1, "Femur": 0.9, "Tibia": 1.0, "Tarsus1": 0.5}
 
 
-def build_measured_pools(idx, conns_path="../vnc-connectome/downloads/traced-connections.csv"):
-    """MNごとの (ニューロンindex, 力ゲインμN, 時定数s, 所属関節・方向) を構築。"""
+def build_measured_pools(conns_path="../vnc-connectome/downloads/traced-connections.csv"):
+    """MNごとの (bodyid, 力ゲインμN, 時定数s, 所属関節・方向) を構築。"""
     mns = vnc_model.leg_mn_table()
     conns = pd.read_csv(conns_path)
     in_syn = conns.groupby("bodyId_post").weight.sum()
     rows = []
     for _, r in mns.iterrows():
-        if r.target not in MUSCLE2JOINT or r.bodyid not in idx:
+        if r.target not in MUSCLE2JOINT:
             continue
         joint, d = MUSCLE2JOINT[r.target]
         leg = SIDE2LEG[r.soma_side] + SEG2LEG[r.soma_neuromere]
-        rows.append(dict(ni=idx[r.bodyid], joint=f"joint_{leg}{joint}", dir=d,
+        rows.append(dict(bodyid=int(r.bodyid), joint=f"joint_{leg}{joint}", dir=d,
                          leg=leg, size=float(in_syn.get(r.bodyid, 1.0))))
     df = pd.DataFrame(rows)
     # サイズ原理: プール内ランク百分位 → 力/スパイク 0.1〜10μN (対数), τ 150→15ms
@@ -50,20 +50,30 @@ def build_measured_pools(idx, conns_path="../vnc-connectome/downloads/traced-con
     return df
 
 
+E_MAX = 10.0   # 最小MNのPSP倍率 (入力抵抗勾配のモデル)
+
 def main():
+    import sys
+    use_gradient = "--gradient" in sys.argv
     from flygym import Fly, Camera, SingleFlySimulation
 
     sn_by_leg = sensory_pools()
     sens_comp, motor_comp = compensation_factors(sn_by_leg)
     sn_all = [b for leg in sn_by_leg.values() for b in leg]
+    mp = build_measured_pools()
+    excit = {int(r.bodyid): float(E_MAX ** (1.0 - r.pct))
+             for _, r in mp.iterrows()} if use_gradient else None
+    print("excitability gradient:", "ON (E_MAX=%.1f)" % E_MAX if use_gradient else "OFF")
     net, mon, ids, idx, pg = vnc_model.make_network(
-        vnc_model.MDN_BODYIDS, r_stim_hz=MDN_RATE, sensory_bodyids=sn_all)
+        vnc_model.MDN_BODYIDS, r_stim_hz=MDN_RATE, sensory_bodyids=sn_all,
+        excitability=excit)
     kept = [b for b in sn_all if b in idx]
     pos_of = {b: i for i, b in enumerate(kept)}
     leg_slices = {leg: np.array([pos_of[b] for b in bs if b in pos_of])
                   for leg, bs in sn_by_leg.items()}
 
-    mp = build_measured_pools(idx)
+    mp = mp[mp.bodyid.isin(idx)].reset_index(drop=True)
+    mp["ni"] = mp.bodyid.map(idx)
     print(f"measured MNs: {len(mp)}  gain range [{mp.gain_uN.min():.2f}, "
           f"{mp.gain_uN.max():.1f}] μN/spike")
     ni = mp.ni.values
@@ -154,9 +164,10 @@ def main():
                   f"z={obs['fly'][0][2]:.2f} stance={stance} "
                   f"Fmax={F_mn.max():.1f}uN")
 
-    cam.save_video("outputs/measured_interface.mp4")
+    suffix = "_gradient" if use_gradient else ""
+    cam.save_video(f"outputs/measured_interface{suffix}.mp4")
     from brian2 import ms as _ms
-    np.savez("outputs/measured_log.npz",
+    np.savez(f"outputs/measured_log{suffix}.npz",
              force=np.array(log_force), gain=gain, tau=tau,
              joint=mp.joint.values.astype(str), dir=mp.dir.values,
              pos=np.array(log_pos), load=np.array(log_load), z=np.array(log_z),
@@ -170,7 +181,7 @@ def main():
     print(f"\nbody z mean {np.mean(log_z):.2f}  displacement "
           f"{np.linalg.norm(pos[-1,:2]-pos[0,:2]):.2f} mm")
     print("steps:", steps)
-    print("saved outputs/measured_interface.mp4")
+    print(f"saved outputs/measured_interface{suffix}.mp4")
 
 
 if __name__ == "__main__":
