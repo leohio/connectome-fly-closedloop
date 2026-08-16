@@ -133,9 +133,12 @@ def hal_rates(t, omega, pref, side):
     """位相コーディング: 好み位相±ωシフトの von Mises レート"""
     phc = np.mod(t * WBF, 1.0)
     # roll: 左右反対称 / pitch: 同相 / yaw: ストローク位相依存 (cos(2πpref)署名)
-    shift = C_PHASE * (side * omega[0] + omega[1]
-                       + side * np.cos(2 * np.pi * pref) * omega[2])
-    gain = 1.0 + C_GAIN * (side * omega[0])
+    # 機械受容の線形レンジ飽和 (±12 rad/s): 大トランジェントで位相が
+    # 折り返して符号情報まで壊れるのを防ぐ (実ハルテアも飽和する)
+    o = [float(np.clip(w, -12.0, 12.0)) for w in omega]
+    shift = C_PHASE * (side * o[0] + o[1]
+                       + side * np.cos(2 * np.pi * pref) * o[2])
+    gain = 1.0 + C_GAIN * (side * o[0])
     dphi = 2*np.pi*(phc - pref - shift)
     return np.clip(R_PEAK * np.exp(KAPPA*(np.cos(dphi)-1.0)) * gain, 0, 8000)
 

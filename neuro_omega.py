@@ -154,7 +154,7 @@ def mode_quality():
           f"ヨーへのクロストークσ={np.std(est_y[2000:]):.2f}rad/s", flush=True)
 
 
-def fly_trial(T=3.0, omega_src="haltere", video=None):
+def fly_trial(T=3.0, omega_src="haltere", tau_om=0.01, video=None):
     """光学視覚 + ハルテアω の統合飛行 (単一Network)。"""
     from brian2 import ms as _ms
     env = PR._fly_env()
@@ -170,7 +170,7 @@ def fly_trial(T=3.0, omega_src="haltere", video=None):
     monV = SpikeMonitor(neuV, record=False)
     sensV = set(int(b) for b in np.concatenate([metaV["ocr"], metaV["vshs"]]))
     readout = np.array([i for b, i in idxV.items() if b not in sensV])
-    H = hal_build() if omega_src == "haltere" else None
+    H = hal_build() if omega_src in ("haltere", "haltere_hybrid") else None
     objs = [neuV, synV, monV, pgV, shV]
     if H is not None:
         objs += list(H["net"].objects)
@@ -264,16 +264,23 @@ def fly_trial(T=3.0, omega_src="haltere", video=None):
             if H is not None:
                 dec.step()
                 om_est[:] = dec.estimate()
+            elif omega_src == "true_lp":
+                om_est += (DT_N / tau_om) * (om_true - om_est)
             else:
                 om_est[:] = om_true
+            # 姿勢伝搬はハルテア推定 (遅い用途; 帯域要件を満たす=修正2)
             eb_est += DT_N * np.array([-om_est[0], -om_est[1]])
             eb_est += (DT_N / TAU_F) * (target - eb_est)
+            if omega_src == "haltere_hybrid":
+                om_x = om_true      # 速いダンピング列のみ真値 (残存ハリボテ、特性評価済み)
+            else:
+                om_x = om_est
             for kp2 in range(int(DT_N / dtp)):
                 tt = t + kn * DT_N + kp2 * dtp
                 x = np.array([(12.0 - d.qpos[2]) / 5.0, -d.qvel[2] / 30.0,
                               eb_est[0], eb_est[1],
-                              om_est[0] / 20.0, om_est[1] / 20.0,
-                              om_est[2] / 20.0])
+                              om_x[0] / 20.0, om_x[1] / 20.0,
+                              om_x[2] / 20.0])
                 u = np.tanh(K @ x + b_pol) * U_SCALE
                 amp = np.clip(1.0 + u[0], 0.5, 1.6)
                 env0 = min(tt / 0.03, 1.0)
