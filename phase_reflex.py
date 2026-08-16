@@ -132,7 +132,9 @@ def setup(gyro=True, shuffle=None, shuffle_seed=0):
 def hal_rates(t, omega, pref, side):
     """位相コーディング: 好み位相±ωシフトの von Mises レート"""
     phc = np.mod(t * WBF, 1.0)
-    shift = C_PHASE * (side * omega[0] + omega[1])      # roll:左右逆, pitch:同相
+    # roll: 左右反対称 / pitch: 同相 / yaw: ストローク位相依存 (cos(2πpref)署名)
+    shift = C_PHASE * (side * omega[0] + omega[1]
+                       + side * np.cos(2 * np.pi * pref) * omega[2])
     gain = 1.0 + C_GAIN * (side * omega[0])
     dphi = 2*np.pi*(phc - pref - shift)
     return np.clip(R_PEAK * np.exp(KAPPA*(np.cos(dphi)-1.0)) * gain, 0, 8000)

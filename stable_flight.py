@@ -23,6 +23,7 @@ from brian2 import Hz, prefs
 import phase_reflex as PR
 import brain_visual as BV
 import vision_pop as VP
+import optics as OPT
 
 prefs.codegen.target = "numpy"
 
@@ -42,10 +43,17 @@ def trial(est="oracle", tau=0.02, shuffle=None, seed=0, transfer_w=None,
     K[:, 2:4] *= att_scale
     if est == "none":
         K[:, 2:4] = 0.0
-    if est in ("neuro", "fusion"):
+    if est == "optic":
+        m = OPT.get_model()          # 非衝突床つき (物理は同一)
+    if est in ("neuro", "fusion", "optic"):
         net, mon, pg, ssign, is_oc, readout = VP.build(shuffle, seed)
-        r0, t_r, t_p, s2r, s2p = VP.calibrate(net, mon, pg, ssign, is_oc,
-                                              readout)
+        if est == "optic":
+            eye = OPT.OcellarEye(m)
+            r0, t_r, t_p, s2r, s2p = OPT.calibrate_eye(
+                net, mon, pg, eye, readout, m, Q0, ssign=ssign, is_oc=is_oc)
+        else:
+            r0, t_r, t_p, s2r, s2p = VP.calibrate(net, mon, pg, ssign, is_oc,
+                                                  readout)
         if transfer_w is not None:
             t_r, t_p, s2r, s2p = transfer_w
         prev_c = mon.count[:].copy()
@@ -77,10 +85,13 @@ def trial(est="oracle", tau=0.02, shuffle=None, seed=0, transfer_w=None,
         e_b = R.reshape(3, 3).T @ np.cross(zc, ZT_W)
         if est == "oracle":
             target = np.array([e_b[0], e_b[1]])
-        elif est in ("neuro", "fusion"):
-            om = d.qvel[3:6]
-            pg.rates = BV.vis_rates(e_b[0], e_b[1], om[0], om[1],
-                                    ssign, is_oc) * Hz
+        elif est in ("neuro", "fusion", "optic"):
+            if est == "optic":
+                pg.rates = eye.rates(d, ssign, is_oc) * Hz
+            else:
+                om = d.qvel[3:6]
+                pg.rates = BV.vis_rates(e_b[0], e_b[1], om[0], om[1],
+                                        ssign, is_oc) * Hz
             net.run(DT_W * 1000 * _ms)
             c = mon.count[:].copy()
             r_now = (c - prev_c)[readout] / DT_W
@@ -90,7 +101,7 @@ def trial(est="oracle", tau=0.02, shuffle=None, seed=0, transfer_w=None,
                                VP.decode(f_rate, r0, t_p, s2p)])
         else:
             target = np.zeros(2)
-        if est == "fusion":
+        if est in ("fusion", "optic"):
             om = d.qvel[3:6]
             # 高速: ω積分で姿勢伝搬 (d eb/dt = [-ωx, -ωy], 実測R²=0.95)
             eb_est = eb_est + DT_W * np.array([-om[0], -om[1]])
