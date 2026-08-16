@@ -24,14 +24,16 @@ import vnc_model
 prefs.codegen.target = "numpy"
 
 VIS_DT = 0.010        # 判断ループ 10ms
-V_APPROACH = 4.0      # 接近速度指令
-K_YAW = 8.0           # 方位→ヨーレート指令
+V_APPROACH = 2.0      # 接近速度指令 (権限弱・ドリフト主体)
+K_PSI = 1.5           # 方位信号→進行方位指令の積分ゲイン
 TH_APP = 0.15         # 減速判断の抑制閾値
 TH_TOUCH = 5.0        # 触覚判断: VNC応答倍率
 TREE = (-18.0, 8.0)
+Z_TGT = 20.0   # 高度目標 (実現高度はサグにより約8-12)
 
 
-def run_demo(T=8.0, video=None, verbose=True):
+def run_demo(T=8.0, video=None, verbose=True, psi0=0.0,
+             kpsi=1.5):
     defaultclock.dt = 1 * ms      # 判断回路は1ms粒度で十分
     env = PR._fly_env()
     b_pol = env["b_pol"]
@@ -39,16 +41,16 @@ def run_demo(T=8.0, video=None, verbose=True):
     _R0 = np.zeros(9)
     mujoco.mju_quat2Mat(_R0, np.array(Q0))
     ZT_W = np.array([_R0[2], _R0[5], _R0[8]])
-    m = OV.get_tree_model(tree=TREE)
+    m = OV.get_tree_model(tree=TREE, radius=2.5, height=30.0)
     d = mujoco.MjData(m)
     mujoco.mj_resetData(m, d)
     d.qpos[:3] = (2.0, 0.0, 12.0)
     d.qpos[3:7] = Q0
     mujoco.mj_forward(m, d)
     # ナビポリシー (5x9)
-    ck = np.load("../fly-flight-sim/outputs/hover_policy_nav.npz")
-    K = ck["theta"][:45].reshape(5, 9)
-    bp = ck["theta"][45:]
+    ck = np.load("../fly-flight-sim/outputs/hover_policy.npz")
+    K = ck["theta"][:35].reshape(5, 7)     # 元の強い安定化ポリシー
+    bp = ck["theta"][35:]
     U_SCALE = np.array([0.5, 0.5, 0.4, 0.4, 0.3])
     aid = {nm: mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, nm)
            for nm in ["wing_yaw_left", "wing_roll_left", "wing_pitch_left",
@@ -72,8 +74,8 @@ def run_demo(T=8.0, video=None, verbose=True):
     bearing0 = np.arctan2(TREE[1] - d.qpos[1], TREE[0] - d.qpos[0])
     dcal = mujoco.MjData(m)
     mujoco.mj_resetData(m, dcal)
-    dcal.qpos[:3] = d.qpos[:3]
-    yaw = bearing0 + np.pi
+    dcal.qpos[:3] = d.qpos[:3].copy()
+    yaw = bearing0                      # 基線 = 開始位置で木の方向 (遠方=微小)
     dq = np.array([np.cos(yaw/2), 0, 0, np.sin(yaw/2)])
     out = np.zeros(4)
     mujoco.mju_mulQuat(out, dq, np.array(Q0))
@@ -94,13 +96,13 @@ def run_demo(T=8.0, video=None, verbose=True):
     if verbose:
         print(f"視覚基線: " + " ".join(f"{k}={base[k]:.0f}" for k in base)
               + f" / VNC基線={vnc_base:.0f}sp/s", flush=True)
-    # 開始姿勢: 木の方を向けておく (探索フェーズの簡略化)
-    yaw = bearing0
-    dq = np.array([np.cos(yaw/2), 0, 0, np.sin(yaw/2)])
-    out = np.zeros(4)
-    mujoco.mju_mulQuat(out, dq, np.array(Q0))
-    d.qpos[3:7] = out
+    # 開始姿勢: ポリシー固有の基準方位のまま (建て直しトランジェント回避)。
+    # 操舵は目標姿勢ベクトルの回転 zt=Rz(ψ)·ZT_W で行う (発見:
+    # ポリシーは世界固定方位を保持するため、ヨー注入では操舵できない)
+    d.qpos[3:7] = Q0
     mujoco.mj_forward(m, d)
+    psi_cmd = psi0     # 事前方位補正 (グリッド較正)
+    kpsi_eff = K_PSI if kpsi is None else kpsi
     # --- レンダラ ---
     renderer, frames, next_f = None, [], 0.0
     if video:
@@ -113,40 +115,43 @@ def run_demo(T=8.0, video=None, verbose=True):
     kk = max(Pw["sharp"], 1e-3)
     R = np.zeros(9)
     state = "APPROACH"
+    cpsi, spsi = 1.0, 0.0
+    touch_latch = False
     wings_on = True
     t_touch = None
     az_sig = app_sig = 0.0
-    yaw_cmd = 0.0
     vcmd = np.zeros(2)
     Rm = np.zeros(9)
     n_steps = int(T / dtp)
     vis_every = int(VIS_DT / dtp)
     log_lines = []
+    dmin = 1e9
     for k in range(n_steps):
         t = k * dtp
         # ---- 判断ループ (10ms毎) ----
         if k % vis_every == 0:
             im = eye.images(d)
             pgO.rates = OV.phot_rates(im, pix, r_side) * Hz
-            touching = any((d.contact[i].geom1 == tree_gid or
-                            d.contact[i].geom2 == tree_gid)
-                           for i in range(d.ncon))
-            pgV.rates = (np.full(len(keptV), 150.0) if touching
+            pgV.rates = (np.full(len(keptV), 150.0) if touch_latch
                          else np.zeros(len(keptV))) * Hz
+            touch_latch = False
             net.run(VIS_DT * 1000 * ms / 1000)
             cO = monO.count[:].copy()
             cV = monV.count[:].copy()
             drO = (cO - prevO) / VIS_DT
             vnc_rate = (cV - prevV).sum() / VIS_DT
             prevO, prevV = cO, cV
+            if t < 0.3:                 # 飛行中の実測基線を収集
+                for kx, vv in gsel.items():
+                    base[kx] = 0.7 * base[kx] + 0.3 * max(drO[vv].mean(), 1.0)
             sup = {kx: 1.0 - drO[v].mean() / base[kx]
                    for kx, v in gsel.items()}
-            az_sig = 0.7 * az_sig + 0.3 * ((sup["LC4_L"] + sup["LPLC2_L"])
+            az_sig = 0.5 * az_sig + 0.5 * ((sup["LC4_L"] + sup["LPLC2_L"])
                                            - (sup["LC4_R"] + sup["LPLC2_R"]))
             app_sig = 0.8 * app_sig + 0.2 * 0.5 * sum(sup.values())
             touch_sig = vnc_rate / vnc_base
             # 状態遷移
-            if state == "APPROACH" and app_sig > TH_APP:
+            if state == "APPROACH" and t > 0.8 and app_sig > TH_APP:
                 state = "BRAKE"
                 log_lines.append(f"t={t:.2f} 減速判断 (app={app_sig:.2f})")
             if state in ("APPROACH", "BRAKE") and touch_sig > TH_TOUCH:
@@ -161,21 +166,21 @@ def run_demo(T=8.0, video=None, verbose=True):
             head_w[2] = 0
             nh = np.linalg.norm(head_w) + 1e-9
             head_w /= nh
-            yaw_cmd = np.clip(K_YAW * az_sig, -6, 6)
-            if state == "APPROACH":
-                vcmd = V_APPROACH * head_w[:2]
-            else:
-                vcmd = np.zeros(2)
+            if t >= 0.15 and state == "APPROACH":
+                psi_cmd += np.clip(kpsi_eff * az_sig, -1.0, 1.0) * VIS_DT
+                psi_cmd = float(np.clip(psi_cmd, -1.0, 1.0))
         # ---- 飛行制御 (毎ステップ) ----
+        cpsi, spsi = np.cos(psi_cmd), np.sin(psi_cmd)
+        zt = np.array([cpsi * ZT_W[0] - spsi * ZT_W[1],
+                       spsi * ZT_W[0] + cpsi * ZT_W[1], ZT_W[2]])
         mujoco.mju_quat2Mat(R, d.qpos[3:7])
         zc = np.array([R[2], R[5], R[8]])
-        e_b = R.reshape(3, 3).T @ np.cross(zc, ZT_W)
+        e_b = R.reshape(3, 3).T @ np.cross(zc, zt)
         om = d.qvel[3:6]
-        v = d.qvel[:3]
-        x = np.array([(12.0 - d.qpos[2]) / 5.0, -v[2] / 30.0,
+        vel = d.qvel[:3]
+        x = np.array([(12.0 - d.qpos[2]) / 5.0, -vel[2] / 30.0,
                       e_b[0], e_b[1], om[0] / 20.0, om[1] / 20.0,
-                      (om[2] - yaw_cmd) / 20.0,
-                      (v[0] - vcmd[0]) / 10.0, (v[1] - vcmd[1]) / 10.0])
+                      om[2] / 20.0])
         u = np.tanh(K @ x + bp) * U_SCALE
         amp = np.clip(1.0 + u[0], 0.5, 1.6)
         env0 = min(t / 0.03, 1.0) if wings_on else 0.0
@@ -194,8 +199,19 @@ def run_demo(T=8.0, video=None, verbose=True):
         d.ctrl[aid["wing_roll_left"]] = eL * Pw["roll_amp"] * np.sin(2 * ph2)
         d.ctrl[aid["wing_roll_right"]] = eR * Pw["roll_amp"] * np.sin(2 * ph2)
         mujoco.mj_step(m, d)
+        # 接触は毎ステップ検出してラッチ (瞬間接触の取りこぼし防止)
+        if not touch_latch:
+            for ci in range(d.ncon):
+                if (d.contact[ci].geom1 == tree_gid or
+                        d.contact[ci].geom2 == tree_gid):
+                    touch_latch = True
+                    break
         if not np.isfinite(d.qpos[2]) or d.qpos[2] < 0.3:
             break
+        dnow = np.hypot(d.qpos[0]-TREE[0], d.qpos[1]-TREE[1])
+        dmin = min(dmin, dnow)
+        if dnow > 45:
+            break                        # すり抜け失敗の早期終了
         if renderer and t * 10 >= next_f:
             vcam.lookat[:] = d.qpos[:3]
             renderer.update_scene(d, camera=vcam)
@@ -213,9 +229,9 @@ def run_demo(T=8.0, video=None, verbose=True):
     dist = np.hypot(d.qpos[0]-TREE[0], d.qpos[1]-TREE[1])
     for ln in log_lines:
         print(ln, flush=True)
-    print(f"終了: state={state} 最終距離{dist:.1f} t={k*dtp:.2f}s "
-          f"z={d.qpos[2]:.1f}", flush=True)
-    return state, dist
+    print(f"終了: state={state} 最終距離{dist:.1f} 最接近{dmin:.1f} "
+          f"t={k*dtp:.2f}s z={d.qpos[2]:.1f}", flush=True)
+    return state, dmin
 
 
 if __name__ == "__main__":

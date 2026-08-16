@@ -45,7 +45,7 @@ def get_tree_model(tree=(-18.0, 8.0), radius=1.2, height=24.0):
             '<worldbody>',
             '<worldbody>'
             '<geom name="vision_floor" type="plane" size="120 120 0.1" '
-            'pos="0 0 0" rgba="0.9 0.9 0.9 1" contype="0" conaffinity="0"/>'
+            'pos="0 0 0" rgba="0.9 0.9 0.9 1" contype="1" conaffinity="1"/>'
             f'<geom name="tree" type="cylinder" size="{radius} {height/2}" '
             f'pos="{tree[0]} {tree[1]} {height/2}" rgba="0.05 0.08 0.02 1" '
             'contype="1" conaffinity="1"/>', 1)
