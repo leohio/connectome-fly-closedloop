@@ -59,10 +59,46 @@ class NeuralIntegrator:
         return self.E
 
 
-def hal_build():
+def hal_build(extra_drive_ids=None):
     PR.C_PHASE = C_PHASE
+    if extra_drive_ids is not None:
+        (net, mon, pg, pref, side, st_idx, n,
+         extras) = PR.setup(extra_drive_ids=extra_drive_ids)
+        return dict(net=net, mon=mon, pg=pg, pref=pref, side=side, n=n,
+                    extras=extras)
     net, mon, pg, pref, side, st_idx, n = PR.setup()
     return dict(net=net, mon=mon, pg=pg, pref=pref, side=side, n=n)
+
+
+R_DN = 100.0    # MANC DNミラーの基準レート [Hz] (下行指令の符号化)
+KD_CMD = 5.0    # 姿勢指令→DNレート変調 [1/rad]
+
+
+def muscle_tables():
+    """MANC: 指令DN(DNg04/DNp18)のbodyIdと側、操舵MNプール定義"""
+    import pandas as pd
+    props = pd.read_feather("neuron-properties.feather")
+    mns = pd.read_csv("../vnc-connectome/downloads/elife-96084-supp3-v1.csv",
+                      encoding="latin1")
+    wm = mns[mns.subclass == "wm"]
+    som = props.set_index("bodyId")["somaSide"].astype(str)
+    dn_rows = []
+    for ty in ["DNg04", "DNp18"]:
+        for b in props[props.type == ty].bodyId:
+            dn_rows.append((int(b), ty, som.get(int(b), "?")[:1]))
+    pools = {}
+    st = wm[wm.target.isin(PR.STEER)][["bodyid", "target"]].copy()
+    st["side"] = st.bodyid.map(som).str[:1]
+    pools["hg_L"] = [int(b) for _, r in st.iterrows()
+                     if r.target.startswith("hg") and r.side == "L"
+                     for b in [r.bodyid]]
+    pools["hg_R"] = [int(b) for _, r in st.iterrows()
+                     if r.target.startswith("hg") and r.side == "R"
+                     for b in [r.bodyid]]
+    pools["b12"] = [int(b) for _, r in st.iterrows()
+                    if r.target in ("b1", "b2")
+                    for b in [r.bodyid]]
+    return dn_rows, pools
 
 
 class HalDecoder:
@@ -178,7 +214,8 @@ def mode_quality():
 
 
 def fly_trial(T=3.0, omega_src="haltere", tau_om=0.01,
-              vis_readout="pop", video=None):
+              vis_readout="pop", actuation="es", G_mus=(1.0, -1.0),
+              video=None):
     """光学視覚 + ハルテアω の統合飛行 (単一Network)。"""
     from brian2 import ms as _ms
     env = PR._fly_env()
@@ -194,16 +231,45 @@ def fly_trial(T=3.0, omega_src="haltere", tau_om=0.01,
     monV = SpikeMonitor(neuV, record=False)
     sensV = set(int(b) for b in np.concatenate([metaV["ocr"], metaV["vshs"]]))
     readout = np.array([i for b, i in idxV.items() if b not in sensV])
-    H = hal_build() if omega_src in ("haltere", "haltere_hybrid") else None
+    dn_rows = pools = None
+    if actuation == "muscle":
+        dn_rows, pools = muscle_tables()
+        H = hal_build(extra_drive_ids=[b for b, _, _ in dn_rows])
+    elif omega_src in ("haltere", "haltere_hybrid"):
+        H = hal_build()
+    else:
+        H = None
+    if actuation == "muscle":
+        K[:, 2:4] = 0.0     # ES姿勢列を廃止: 姿勢作動は筋経路のみ
+        ex = H["extras"]
+        pos_dn = {b: k for k, b in enumerate(ex["ex_ids"])}
+        idxH = ex["idx"]
+        pool_idx = {k: np.array([idxH[b] for b in v if b in idxH])
+                    for k, v in pools.items()}
+        dn_side = {b: s for b, ty, s in dn_rows}
+        dn_type = {b: ty for b, ty, s in dn_rows}
+
+        def dn_cmd_rates(cmd):
+            r = np.zeros(len(ex["ex_ids"]))
+            for b, k in pos_dn.items():
+                if dn_type[b] == "DNg04":
+                    sgn = +1.0 if dn_side[b] == "L" else -1.0
+                    r[k] = R_DN * (1.0 + KD_CMD * sgn * cmd[0])
+                else:
+                    r[k] = R_DN * (1.0 + KD_CMD * cmd[1])
+            return np.clip(r, 0, 350)
     objs = [neuV, synV, monV, pgV, shV]
     if H is not None:
         objs += list(H["net"].objects)
     net = Network(*objs)
     clock_t = [0.0]
 
-    def run_net(T_run, omg, vis_rates_now):
-        """omgでハルテアを、vis_rates_nowで視覚を駆動しつつ進める"""
+    def run_net(T_run, omg, vis_rates_now, cmd=None):
+        """omgでハルテアを、vis_rates_nowで視覚を、cmdでDNミラーを駆動"""
         pgV.rates = vis_rates_now * Hz
+        if actuation == "muscle":
+            H["extras"]["pg2"].rates = dn_cmd_rates(
+                cmd if cmd is not None else (0.0, 0.0)) * Hz
         steps = int(round(T_run / DT_N))
         for k in range(steps):
             if H is not None:
@@ -264,6 +330,26 @@ def fly_trial(T=3.0, omega_src="haltere", tau_om=0.01,
         PH0h, thr, thp, thy = hal_calibrate(
             H, lambda T_run, omg: run_net(T_run, omg, level_rates))
         dec = HalDecoder(H, PH0h, thr, thp, thy)
+    if actuation == "muscle":
+        # 端到端較正: 姿勢指令 → DNミラー → 実配線 → MNプール応答
+        monH = H["mon"]
+        prevH = monH.count[:].copy()
+        pr = []
+        for cmd in [(0, 0), (0.2, 0), (-0.2, 0), (0, 0.2), (0, -0.2)]:
+            run_net(0.4, (0, 0, 0), level_rates, cmd=cmd)
+            cH = monH.count[:].copy()
+            dr_ = (cH - prevH) / 0.4
+            prevH = cH
+            pr.append({k: float(dr_[v].mean()) for k, v in pool_idx.items()})
+        g_roll = ((pr[1]["hg_L"] - pr[1]["hg_R"])
+                  - (pr[2]["hg_L"] - pr[2]["hg_R"])) / 0.4
+        hgc = lambda p: 0.5 * (p["hg_L"] + p["hg_R"])
+        g_pitch = (hgc(pr[3]) - hgc(pr[4])) / 0.4
+        mus_base = dict(roll=pr[0]["hg_L"] - pr[0]["hg_R"], pitch=hgc(pr[0]))
+        print(f"筋経路較正: g_roll={g_roll:.1f}Hz/rad g_pitch={g_pitch:.1f}Hz/rad",
+              flush=True)
+        f_pool = dict(pr[0])
+        prev_cH = monH.count[:].copy()
     # --- 飛行 ---
     d = mujoco.MjData(m)
     dtp = m.opt.timestep
@@ -285,6 +371,7 @@ def fly_trial(T=3.0, omega_src="haltere", tau_om=0.01,
     integ = NeuralIntegrator(TAU_F)
     eb_est = np.zeros(2)
     om_est = np.zeros(3)
+    gdL = gdR = drh = 0.0
     f_rate = r0.copy()
     prev_c = monV.count[:].copy()
     ups, zs, n_alive = [], [], 0
@@ -300,6 +387,9 @@ def fly_trial(T=3.0, omega_src="haltere", tau_om=0.01,
         f_rate += DT_W * (r_now - f_rate) / 0.05
         target = np.array([float(np.dot(t_r, f_rate - r0) / s2r),
                            float(np.dot(t_p, f_rate - r0) / s2p)])
+        if actuation == "muscle":
+            H["extras"]["pg2"].rates = dn_cmd_rates(
+                (eb_est[0], eb_est[1])) * Hz
         for kn in range(int(DT_W / DT_N)):
             om_true = d.qvel[3:6]
             if H is not None:
@@ -321,6 +411,22 @@ def fly_trial(T=3.0, omega_src="haltere", tau_om=0.01,
                 om_x = om_true      # 速いダンピング列のみ真値 (残存ハリボテ、特性評価済み)
             else:
                 om_x = om_est
+            if actuation == "muscle":
+                cH = H["mon"].count[:].copy()
+                rH = (cH - prev_cH) / DT_N
+                prev_cH = cH
+                for kpool in pool_idx:
+                    f_pool[kpool] += DT_N * (
+                        float(rH[pool_idx[kpool]].mean())
+                        - f_pool[kpool]) / 0.05
+                sig_r = ((f_pool["hg_L"] - f_pool["hg_R"])
+                         - mus_base["roll"]) \
+                    / (g_roll if abs(g_roll) > 1e-6 else 1e9)
+                sig_p = (f_pool["b12"] - mus_base["pitch"]) \
+                    / (g_pitch if abs(g_pitch) > 1e-6 else 1e9)
+                gdL = float(np.clip(G_mus[0] * sig_r, -0.4, 0.4))
+                gdR = -gdL
+                drh = float(np.clip(G_mus[1] * sig_p, -0.4, 0.4))
             for kp2 in range(int(DT_N / dtp)):
                 tt = t + kn * DT_N + kp2 * dtp
                 x = np.array([(12.0 - d.qpos[2]) / 5.0, -d.qvel[2] / 30.0,
@@ -332,9 +438,10 @@ def fly_trial(T=3.0, omega_src="haltere", tau_om=0.01,
                 env0 = min(tt / 0.03, 1.0)
                 ph2 = 2 * np.pi * Pw["freq"] * tt
                 s = np.sin(ph2)
-                rot = np.tanh(kk * np.cos(ph2 + Pw["phase"])) / np.tanh(kk)
-                eL = env0 * amp
-                eR = env0 * amp
+                rot = np.tanh(kk * np.cos(ph2 + Pw["phase"] + drh)) / np.tanh(kk)
+                down = 1.0 if np.cos(ph2) < 0 else 0.0
+                eL = env0 * amp * (1.0 + gdL * down)
+                eR = env0 * amp * (1.0 + gdR * down)
                 d.ctrl[:] = 0
                 d.ctrl[aid["wing_yaw_left"]] = eL * (Pw["yaw_amp"] * s + u[1] + u[2])
                 d.ctrl[aid["wing_yaw_right"]] = eR * (Pw["yaw_amp"] * s + u[1] - u[2])

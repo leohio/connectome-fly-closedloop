@@ -32,12 +32,14 @@ C_GAIN = 0.01            # ω→ゲイン変調
 STEER = ["b1", "b2", "b3", "i1", "i2", "iii1", "iii3", "hg1", "hg2", "hg3", "hg4"]
 
 
-def build_subnet(shuffle=None, shuffle_seed=0):
+def build_subnet(shuffle=None, shuffle_seed=0, extra_ids=None):
     """shuffle=None: 実配線 / "all": 全エッジのpost端を置換(次数保存) /
     "hal": ハルテア求心性の出力エッジのみpost端を置換"""
     ids_all, pre, post, w = vnc_model.build_arrays()
     sub = np.load("outputs/subcircuit_ids.npy")
     subset = set(int(s) for s in sub)
+    if extra_ids is not None:
+        subset |= set(int(b) for b in extra_ids)
     keep = np.array([i for i, b in enumerate(ids_all) if int(b) in subset])
     remap = {old: new for new, old in enumerate(keep)}
     ids = ids_all[keep]
@@ -83,7 +85,8 @@ def build_subnet(shuffle=None, shuffle_seed=0):
     return neu, syn, ids, idx
 
 
-def setup(gyro=True, shuffle=None, shuffle_seed=0):
+def setup(gyro=True, shuffle=None, shuffle_seed=0,
+          extra_drive_ids=None):
     mns = pd.read_csv("../vnc-connectome/downloads/elife-96084-supp3-v1.csv",
                       encoding="latin1")
     wm = mns[mns.subclass == "wm"]
@@ -95,7 +98,8 @@ def setup(gyro=True, shuffle=None, shuffle_seed=0):
     hal = props[(props["class"] == "sensory neuron")
                 & (props.modality == "proprioceptive")
                 & props.entryNerve.isin(["DMetaN_L", "DMetaN_R"])]
-    neu, syn, ids, idx = build_subnet(shuffle=shuffle, shuffle_seed=shuffle_seed)
+    neu, syn, ids, idx = build_subnet(shuffle=shuffle, shuffle_seed=shuffle_seed,
+                                      extra_ids=extra_drive_ids)
     # 動力筋: 緊張性 / 操舵MN: 高興奮性 (入力シナプスを4倍)
     for b in power:
         if int(b) in idx:
@@ -125,7 +129,23 @@ def setup(gyro=True, shuffle=None, shuffle_seed=0):
     for i in h_tgt:
         neu.rfc[i] = 0*ms
     mon = SpikeMonitor(neu, record=True)
-    net = Network(neu, syn, mon, pg, sh)
+    objs = [neu, syn, mon, pg, sh]
+    extras = None
+    if extra_drive_ids is not None:
+        ex = [int(b) for b in extra_drive_ids if int(b) in idx]
+        ex_tgt = np.array([idx[b] for b in ex])
+        pg2 = PoissonGroup(len(ex), rates=0*Hz, name="dn_pg")
+        sh2 = Synapses(pg2, neu, on_pre="v_post += %f*mV" %
+                       (vnc_model.PARAMS["w_syn"]*vnc_model.PARAMS["f_poi"]),
+                       name="dnsyn")
+        sh2.connect(i=np.arange(len(ex)), j=ex_tgt)
+        for i in ex_tgt:
+            neu.rfc[i] = 0*ms
+        objs += [pg2, sh2]
+        extras = dict(pg2=pg2, ex_ids=ex, idx=idx)
+    net = Network(*objs)
+    if extras is not None:
+        return net, mon, pg, pref, side, st_idx, len(ids), extras
     return net, mon, pg, pref, side, st_idx, len(ids)
 
 
