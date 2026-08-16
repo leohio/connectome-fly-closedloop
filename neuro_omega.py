@@ -36,6 +36,29 @@ LEAK = 0.995           # 位相偏差EMAのリーク/0.1ms (τ≈20ms)
 C_PHASE = 0.03
 
 
+class NeuralIntegrator:
+    """姿勢積分の明示的神経モデル (漏れ積分器×2ユニット)。
+
+    dE/dt = -E/τ_leak + (-ω) + (E_vis - E)/τ_vis
+    E: 姿勢推定 (roll,pitch), ω: ハルテア推定角速度 (前庭入力),
+    E_vis: 視覚DN読み出し (ドリフト補正入力)。
+    実物対応: ハエの姿勢積分回路は未同定 (本モデルの正直な限界)。
+    数式は漏れ積分器ニューロン (τ_leak=1s) として陽に宣言する —
+    従来の「numpyに埋まった相補フィルタ」をモデルとして可視化したもの。"""
+
+    TAU_LEAK = 1.0
+
+    def __init__(self, tau_vis):
+        self.E = np.zeros(2)
+        self.tau_vis = tau_vis
+
+    def step(self, dt, om2, e_vis):
+        self.E += dt * (-self.E / self.TAU_LEAK
+                        + np.array([-om2[0], -om2[1]])
+                        + (e_vis - self.E) / self.tau_vis)
+        return self.E
+
+
 def hal_build():
     PR.C_PHASE = C_PHASE
     net, mon, pg, pref, side, st_idx, n = PR.setup()
@@ -259,6 +282,7 @@ def fly_trial(T=3.0, omega_src="haltere", tau_om=0.01,
         vcam.type = mujoco.mjtCamera.mjCAMERA_FREE
         vcam.distance, vcam.elevation, vcam.azimuth = 5.0, -10, 100
     R = np.zeros(9)
+    integ = NeuralIntegrator(TAU_F)
     eb_est = np.zeros(2)
     om_est = np.zeros(3)
     f_rate = r0.copy()
@@ -291,9 +315,8 @@ def fly_trial(T=3.0, omega_src="haltere", tau_om=0.01,
                 om_est += (DT_N / tau_om) * (om_true - om_est)
             else:
                 om_est[:] = om_true
-            # 姿勢伝搬はハルテア推定 (遅い用途; 帯域要件を満たす=修正2)
-            eb_est += DT_N * np.array([-om_est[0], -om_est[1]])
-            eb_est += (DT_N / TAU_F) * (target - eb_est)
+            # 姿勢伝搬 = 神経積分器 (前庭入力=ハルテア推定, 視覚=DN読み出し)
+            eb_est = integ.step(DT_N, om_est, target)
             if omega_src == "haltere_hybrid":
                 om_x = om_true      # 速いダンピング列のみ真値 (残存ハリボテ、特性評価済み)
             else:
