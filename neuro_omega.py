@@ -154,7 +154,8 @@ def mode_quality():
           f"ヨーへのクロストークσ={np.std(est_y[2000:]):.2f}rad/s", flush=True)
 
 
-def fly_trial(T=3.0, omega_src="haltere", tau_om=0.01, video=None):
+def fly_trial(T=3.0, omega_src="haltere", tau_om=0.01,
+              vis_readout="pop", video=None):
     """光学視覚 + ハルテアω の統合飛行 (単一Network)。"""
     from brian2 import ms as _ms
     env = PR._fly_env()
@@ -206,10 +207,32 @@ def fly_trial(T=3.0, omega_src="haltere", tau_om=0.01, video=None):
         ratesV.append((c - prevV)[readout] / 0.4)
         prevV = c
     r0, rp, rm, pp, pm = ratesV
-    t_r = (rp - rm) / 0.4
-    t_p = (pp - pm) / 0.4
-    s2r = max(float((t_r ** 2).sum()), 1e-9)
-    s2p = max(float((t_p ** 2).sum()), 1e-9)
+    if vis_readout == "anat":
+        # 解剖学固定読み出し: DNg04左右反対称=ロール, DNp18=ピッチ (二値重み)
+        pos = {int(n): k for k, n in enumerate(readout)}
+        side_of = lambda i: str(metaV["side"][i])
+        mr = np.zeros(len(readout))
+        mp = np.zeros(len(readout))
+        for _, rw in metaV["dn"].iterrows():
+            i = idxV[int(rw.root_id)]
+            if i not in pos:
+                continue
+            if rw.primary_type == "DNg04":
+                mr[pos[i]] = +1.0 if side_of(i) == "left" else -1.0
+            elif rw.primary_type == "DNp18":
+                mp[pos[i]] = +1.0
+        gr = float(mr @ (rp - rm)) / 0.4     # 較正スカラー (Hz/rad)
+        gp = float(mp @ (pp - pm)) / 0.4
+        t_r, t_p = mr * gr, mp * gp          # 整合フィルタ形式に同型化
+        s2r = max(float((mr ** 2).sum()) * gr * gr, 1e-9)
+        s2p = max(float((mp ** 2).sum()) * gp * gp, 1e-9)
+        print(f"解剖学読み出し: DNg04×{int(np.abs(mr).sum())} gain={gr:.1f}Hz/rad"
+              f" / DNp18×{int(mp.sum())} gain={gp:.1f}Hz/rad", flush=True)
+    else:
+        t_r = (rp - rm) / 0.4
+        t_p = (pp - pm) / 0.4
+        s2r = max(float((t_r ** 2).sum()), 1e-9)
+        s2p = max(float((t_p ** 2).sum()), 1e-9)
     # --- 較正2: ハルテア (視覚は水平提示のまま) ---
     dcal.qpos[3:7] = Q0
     mujoco.mj_forward(m, dcal)
