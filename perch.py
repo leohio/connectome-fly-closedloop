@@ -135,7 +135,7 @@ def run_demo(T=8.0, video=None, verbose=True, psi0=0.0,
             pgV.rates = (np.full(len(keptV), 150.0) if touch_latch
                          else np.zeros(len(keptV))) * Hz
             touch_latch = False
-            net.run(VIS_DT * 1000 * ms / 1000)
+            net.run(VIS_DT * 1000 * ms)   # 10ms (統合18型の単位バグを修正)
             cO = monO.count[:].copy()
             cV = monV.count[:].copy()
             drO = (cO - prevO) / VIS_DT
@@ -205,6 +205,15 @@ def run_demo(T=8.0, video=None, verbose=True, psi0=0.0,
                 if (d.contact[ci].geom1 == tree_gid or
                         d.contact[ci].geom2 == tree_gid):
                     touch_latch = True
+                    if verbose:
+                        g1 = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM,
+                                               int(d.contact[ci].geom1))
+                        g2 = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM,
+                                               int(d.contact[ci].geom2))
+                        dd = np.hypot(d.qpos[0]-TREE[0], d.qpos[1]-TREE[1])
+                        print(f"  [latch] t={t:.3f} {g1}<->{g2} "
+                              f"dist={dd:.2f} z={d.qpos[2]:.2f} "
+                              f"cdist={d.contact[ci].dist:.4f}", flush=True)
                     break
         if not np.isfinite(d.qpos[2]) or d.qpos[2] < 0.3:
             break
