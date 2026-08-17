@@ -18,38 +18,67 @@ import phase_reflex as PR
 import connectome_fastloop as CF
 
 SETUP_KW = dict(afferent_mode="locked", pref_mode="reversal",
-                electrical=True)
+                electrical=True, mn_ahp=True)
 NB = 200
 
+# ハルテア-翅の機械的周波数結合 (Deora, Singh & Sane 2015):
+# ハルテアは胸部の同一振動系で駆動され、翅と厳密に同周波数で拍動する。
+# 求心性の位相基準を実際の翅拍動周波数に一致させる (従来は218Hz固定で
+# 翅202.3Hzと16Hzずれ、62msごとに位相が一周スリップしていた)
+PR.WBF = float(PR._fly_env()["Pw"]["freq"])
 
-def measure_basis(T=0.8):
-    """ω=0でlocked回路を走らせ、12筋の実張力波形(200bin)を採取"""
+# ハルテア→操舵筋の位相シフト感度を生理値へ。実バエのb1位相シフトは
+# 大旋回時でも数%周期 (Tu & Dickinson 1996: サッカード ~35rad/s で
+# 0.03周期程度)。従来の0.03 cycle/(rad/s) は30倍過大で、ω=8で0.24周期
+# =86°もずれ、隣の求心性volleyへ乗り換える半周期跳びを起こしていた
+PR.C_PHASE = 0.0015
+
+
+TAU_P = 0.02     # 筋活動位相の推定時定数 [s]
+
+
+def measure_basis(T=0.8, want_phase=False):
+    """ω=0でlocked回路を走らせ、12筋の実張力波形(200bin)を採取。
+    want_phase=Trueなら各筋の基準活動位相φ0 (ストローク位相基準) も返す"""
     net, mon, pg, pref, side, st_idx, n = PR.setup(**SETUP_KW)
     ch_idx = {mu: st_idx[mu] for mu in CF.NAMES if mu in st_idx}
     us = {mu: 0.0 for mu in ch_idx}
     fs = {mu: 0.0 for mu in ch_idx}
     acc = {mu: np.zeros(NB) for mu in ch_idx}
+    zc = {mu: 0j for mu in ch_idx}
+    zsum = {mu: 0j for mu in ch_idx}
+    nz = 0
     cnt = np.zeros(NB)
     prev = 0
     for kn in range(int(T / CF.DT_N)):
         tn = kn * CF.DT_N
         net.run(CF.DT_N * 1000 * _ms)
+        ph_w = (tn * PR.WBF) % 1.0
         nsp = mon.num_spikes
         if nsp > prev:
             for iN in np.array(mon.i[prev:nsp]):
                 for mu, im in ch_idx.items():
                     if int(iN) == im:
                         us[mu] += 1.0 / CF.TAU_A
+                        zc[mu] += np.exp(2j * np.pi * ph_w)
             prev = nsp
-        b = min(int(((tn * PR.WBF) % 1.0) * NB), NB - 1)
+        b = min(int(ph_w * NB), NB - 1)
         for mu in ch_idx:
             us[mu] -= CF.DT_N * us[mu] / CF.TAU_A
             fs[mu] += CF.DT_N * (us[mu] - fs[mu]) / CF.TAU_A
+            zc[mu] -= CF.DT_N * zc[mu] / TAU_P
             if tn > 0.2:
                 acc[mu][b] += fs[mu]
+                zsum[mu] += zc[mu]
         if tn > 0.2:
             cnt[b] += 1
-    return {mu: acc[mu] / np.maximum(cnt, 1) for mu in ch_idx}
+            nz += 1
+    Bc = {mu: acc[mu] / np.maximum(cnt, 1) for mu in ch_idx}
+    if want_phase:
+        phi0 = {mu: np.angle(zsum[mu] / max(nz, 1)) / (2 * np.pi)
+                for mu in ch_idx}
+        return Bc, phi0
+    return Bc
 
 
 def fit(Bc):
@@ -71,8 +100,11 @@ def fit(Bc):
     return g, names2, np.array(means), r2
 
 
-def fly(gc, names2, means, mode="ff", T=2.0):
-    """locked回路で飛行。mode='ff'はω=0、'closed'はハルテア位相シフト帰還"""
+def fly(gc, names2, means, mode="ff", T=2.0, axis_gain=None,
+        rec_gain=None, phase_gain=None, phi0=None, pert_seed=None):
+    """locked回路で飛行。mode='ff'はω=0、'closed'はハルテア位相シフト帰還
+    axis_gain=(cR,cP,cY): 軸別反射ゲイン (生物学対応: ハルテア反射の
+    ゲイン調律は発達・飛行経験で較正される)。None時はPR.C_PHASE一律"""
     env = PR._fly_env()
     Pw, Q0, ZT_W = env["Pw"], env["Q0"], env["ZT_W"]
     m = CF.OPT.get_model()
@@ -82,16 +114,31 @@ def fly(gc, names2, means, mode="ff", T=2.0):
                       "wing_pitch_right"]}
     M = CF.chan_matrix()
     jmap = [CF.NAMES.index(mu) for mu in names2]
-    net, mon, pg, pref, side, st_idx, n = PR.setup(**SETUP_KW)
+    kw = dict(SETUP_KW)
+    if rec_gain is not None:
+        kw["recruit"] = True
+    net, mon, pg, pref, side, st_idx, n = PR.setup(**kw)
     ch_idx = {mu: st_idx[mu] for mu in names2 if mu in st_idx}
     us = {mu: 0.0 for mu in names2}
     fs = {mu: 0.0 for mu in names2}
+    # ヒンジの位相→振幅変換 (Tu & Dickinson 1996; Lindsay+ 2017):
+    # 操舵筋は張力の大小ではなく「ストローク内のいつ収縮するか」で翅を操舵する。
+    # 各筋の活動位相を複素EMAで推定し、基準位相からのずれを操舵量に写す。
+    zc = {mu: 0j for mu in names2}
+    use_ph = phase_gain is not None and phi0 is not None
     prev = 0
     shift_prev = np.zeros(len(pref))
+    om_f = np.zeros(3)   # 反射経路の低域通過 (感覚運動フィルタ, τ=50ms)
+    TAU_RFX = 0.05
     d = mujoco.MjData(m)
     mujoco.mj_resetData(m, d)
     d.qpos[2] = 12.0
     d.qpos[3:7] = Q0
+    if pert_seed is not None:
+        # 初期外乱 (突風相当): 姿勢制御の頑健性を測るための再現可能な摂動。
+        # 単発試行はカオス的で分散が大きいため、複数seedの平均で評価する
+        rg = np.random.default_rng(pert_seed)
+        d.qvel[3:6] = rg.normal(0, 1.5, 3)
     mujoco.mj_forward(m, d)
     R = np.zeros(9)
     dtp = m.opt.timestep
@@ -101,24 +148,44 @@ def fly(gc, names2, means, mode="ff", T=2.0):
         tn = kn * CF.DT_N
         om = d.qvel[3:6]
         if mode == "closed":
-            o = np.clip(om, -12, 12)
-            shift = PR.C_PHASE * (side * o[0] + o[1]
-                                  + side * np.cos(2 * np.pi * pref) * o[2])
+            om_f += CF.DT_N * (np.clip(om, -50, 50) - om_f) / TAU_RFX
+            o = np.clip(om_f, -12, 12)
+            if axis_gain is None:
+                cR = cP = cY = PR.C_PHASE
+            else:
+                cR, cP, cY = axis_gain
+            shift = (cR * side * o[0] + cP * o[1]
+                     + cY * side * np.cos(2 * np.pi * pref) * o[2])
             pg.v = pg.v - (shift - shift_prev)
             shift_prev = shift
+            if rec_gain is not None:
+                from brian2 import Hz as _Hz
+                kR, kP, kY = rec_gain
+                drv = (kR * side * o[0] + kP * o[1]
+                       + kY * side * np.cos(2 * np.pi * pref) * o[2])
+                PR.REC_PG.rates = np.clip(drv, 0, 600) * _Hz
         net.run(CF.DT_N * 1000 * _ms)
+        ph_w = (tn * Pw["freq"]) % 1.0
         nsp = mon.num_spikes
         if nsp > prev:
             for iN in np.array(mon.i[prev:nsp]):
                 for mu, im in ch_idx.items():
                     if int(iN) == im:
                         us[mu] += 1.0 / CF.TAU_A
+                        if use_ph:
+                            zc[mu] += np.exp(2j * np.pi * ph_w)
             prev = nsp
         u14 = np.zeros(4)
         for jj, mu in enumerate(names2):
             us[mu] -= CF.DT_N * us[mu] / CF.TAU_A
             fs[mu] += CF.DT_N * (us[mu] - fs[mu]) / CF.TAU_A
             u14 += gc[jj] * (fs[mu] - means[jj]) * M[jmap[jj]]
+            if use_ph:
+                zc[mu] -= CF.DT_N * zc[mu] / TAU_P
+                if abs(zc[mu]) > 1e-3:
+                    dphi = np.angle(zc[mu]) / (2 * np.pi) - phi0[jj]
+                    dphi = (dphi + 0.5) % 1.0 - 0.5   # [-0.5, 0.5)へ巻き戻し
+                    u14 += phase_gain[jj] * dphi * M[jmap[jj]]
         if tn < 0.2:   # 起動橋渡し (回路の張力立ち上がり待ち)
             phc = (tn * Pw["freq"]) % 1.0
             i = min(int(phc * NB), NB - 1)
@@ -154,14 +221,15 @@ def fly(gc, names2, means, mode="ff", T=2.0):
 
 
 if __name__ == "__main__":
-    Bc = measure_basis()
+    Bc, phi0d = measure_basis(want_phase=True)
     for mu, w in Bc.items():
         print(f"  {mu}: p-p={w.max()-w.min():.1f} mean={w.mean():.1f}",
               flush=True)
     gc, names2, means, r2 = fit(Bc)
     print(f"locked回路実基底LSQ: {len(names2)}筋 R²={r2:.3f}", flush=True)
     np.savez("outputs/locked_fit.npz", g=gc, names=np.array(names2),
-             means=means, basis=np.stack([Bc[mu] for mu in names2]), r2=r2)
+             means=means, basis=np.stack([Bc[mu] for mu in names2]), r2=r2,
+             phi0=np.array([phi0d[mu] for mu in names2]))
     s, up = fly(gc, names2, means, mode="ff")
     print(f"locked回路FF(ω=0)      生存{s:.2f}s 直立度{up:+.2f}", flush=True)
     s, up = fly(gc, names2, means, mode="closed")

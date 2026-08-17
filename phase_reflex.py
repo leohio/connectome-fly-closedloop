@@ -31,6 +31,7 @@ C_PHASE = 0.004          # ω→位相シフト [cycle/(rad/s)]
 C_GAIN = 0.01            # ω→ゲイン変調
 STEER = ["b1", "b2", "b3", "i1", "i2", "iii1", "iii3", "hg1", "hg2", "hg3", "hg4"]
 STEER_EXC = 4.0
+REC_PG = None            # 緊張性ハルテア求心性 (recruit=True時にsetupが設定)
 
 
 def build_subnet(shuffle=None, shuffle_seed=0, extra_ids=None):
@@ -88,7 +89,8 @@ def build_subnet(shuffle=None, shuffle_seed=0, extra_ids=None):
 
 def setup(gyro=True, shuffle=None, shuffle_seed=0,
           extra_drive_ids=None, electrical=False,
-          afferent_mode="poisson", pref_mode="uniform"):
+          afferent_mode="poisson", pref_mode="uniform", recruit=False,
+          mn_ahp=False):
     mns = pd.read_csv("../vnc-connectome/downloads/elife-96084-supp3-v1.csv",
                       encoding="latin1")
     wm = mns[mns.subclass == "wm"]
@@ -114,6 +116,14 @@ def setup(gyro=True, shuffle=None, shuffle_seed=0,
     for k, i in st_idx.items():
         fac[i] = STEER_EXC
     syn.w = syn.w[:] * fac[np.array(syn.j[:], dtype=int)]
+    if mn_ahp:
+        # 飛行操舵MNの「1周期1発」を強制する強い後過分極 (AHP)。
+        # b1等の操舵MNは飛行中ずっと羽ばたき周波数で1周期きっかり1発を
+        # 精密な位相で発火する (Tu & Dickinson 1996; Lindsay+ 2017)。
+        # 汎用LIFにはこの内因性特性が無く、過駆動で1周期2発・位相選択性喪失に
+        # なっていた。不応期=0.9周期でAHPの機能的効果をモデル化する
+        for k, i in st_idx.items():
+            neu.rfc[i] = (0.9 / WBF) * 1000 * ms
     # ハルテア: 位相コーディング PoissonGroup (0.1msでレート更新)
     hal_L = [int(b) for b in hal[hal.entryNerve == "DMetaN_L"].bodyId if int(b) in idx]
     hal_R = [int(b) for b in hal[hal.entryNerve == "DMetaN_R"].bodyId if int(b) in idx]
@@ -121,7 +131,46 @@ def setup(gyro=True, shuffle=None, shuffle_seed=0,
     h_tgt = np.array([idx[b] for b in h_all])
     n_h = len(h_all)
     rng = np.random.default_rng(0)
-    if pref_mode == "reversal":
+    if pref_mode == "anatomical":
+        # 解剖学的位相地図: 桿状感覚子の好み位相はハルテア基部での配置で決まり、
+        # 左右のフィールドは鏡像対称である (Fox & Daniel 2008; Yarger & Fox 2016)。
+        # MANCの実座標 (position) を正中で鏡映し、点群の主軸に沿った順位を
+        # 位相[0,1)へ写す。乱数ではなく解剖から位相を決めるための実装。
+        pos = props.set_index("bodyId")["position"]
+        rows = []
+        for b in h_all:
+            v = pos.get(b, None)
+            try:
+                a = np.asarray(v, dtype=float).ravel()
+            except (TypeError, ValueError):
+                a = np.array([])
+            rows.append(a[:3] if a.size >= 3 else np.full(3, np.nan))
+        P = np.vstack(rows)
+        good = np.all(np.isfinite(P), axis=1)
+        if good.sum() >= 3:
+            P[~good] = np.nanmedian(P[good], axis=0)
+        else:
+            P = np.zeros((n_h, 3))
+        xm = np.median(P[:, 0])
+        Pm = P.copy()
+        Pm[:, 0] = xm - np.abs(P[:, 0] - xm)     # 正中で鏡映 (左右対称化)
+        Pc = Pm - Pm.mean(0)
+        try:
+            u, s, vt = np.linalg.svd(Pc, full_matrices=False)
+            proj = Pc @ vt[0]
+        except np.linalg.LinAlgError:
+            proj = Pc[:, 1]
+        # 側ごとに順位付け: k番目に前方の感覚子は左右で同じ好み位相を持つ
+        # (左右のハルテア基部フィールドは鏡像対称なので対応づけできる)
+        sd = np.array([+1] * len(hal_L) + [-1] * len(hal_R))
+        pref = np.zeros(n_h)
+        for s_ in (+1, -1):
+            m_ = sd == s_
+            if m_.sum() == 0:
+                continue
+            r_ = np.argsort(np.argsort(proj[m_]))
+            pref[m_] = r_ / m_.sum()
+    elif pref_mode == "reversal":
         # 生理的: 桿状感覚子はストローク反転(背側0.0/腹側0.5)近傍で発火
         # (Yarger & Fox 2018)。2クラスタ+ジッタσ=0.03cycle
         clus = rng.choice([0.0, 0.5], n_h)
@@ -142,6 +191,18 @@ def setup(gyro=True, shuffle=None, shuffle_seed=0,
                   (vnc_model.PARAMS["w_syn"]*vnc_model.PARAMS["f_poi"]),
                   name="hsyn")
     sh.connect(i=np.arange(n_h), j=h_tgt)
+    global REC_PG
+    REC_PG = None
+    if recruit:
+        # 緊張性(レート符号化)ハルテア求心性: 回転方向依存の動員
+        # (実ハルテアには位相固定型と緊張型の両ユニットが存在する)。
+        # 配線は同じ実求心性→VNC対応 (h_tgt) を使用
+        pgR = PoissonGroup(n_h, rates=0*Hz, name="hal_rec")
+        shR = Synapses(pgR, neu, on_pre="v_post += %f*mV" %
+                       (vnc_model.PARAMS["w_syn"]*vnc_model.PARAMS["f_poi"]),
+                       name="rsyn")
+        shR.connect(i=np.arange(n_h), j=h_tgt)
+        REC_PG = pgR
     el = None
     if electrical:
         # 電気シナプスモデル (化学コネクトームに欠落する既知の生物学:
@@ -170,6 +231,8 @@ def setup(gyro=True, shuffle=None, shuffle_seed=0,
         neu.rfc[i] = 0*ms
     mon = SpikeMonitor(neu, record=True)
     objs = [neu, syn, mon, pg, sh]
+    if recruit and REC_PG is not None:
+        objs += [REC_PG, shR]
     if electrical and el is not None:
         objs.append(el)
     extras = None
