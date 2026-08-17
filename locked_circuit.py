@@ -34,7 +34,8 @@ PR.WBF = float(PR._fly_env()["Pw"]["freq"])
 PR.C_PHASE = 0.0015
 
 
-TAU_P = 0.02     # 筋活動位相の推定時定数 [s]
+TAU_P = 0.010     # 筋活動位相の推定時定数 [s] (1周期1発を2周期分平均)
+OMLOG = None      # not None にすると復号ωと真のω(復調後)を記録する
 
 
 def measure_basis(T=0.8, want_phase=False):
@@ -101,7 +102,8 @@ def fit(Bc):
 
 
 def fly(gc, names2, means, mode="ff", T=2.0, axis_gain=None,
-        rec_gain=None, phase_gain=None, phi0=None, pert_seed=None):
+        rec_gain=None, phase_gain=None, phi0=None, pert_seed=None,
+        decode=None, K=None, shuffle=None, shuffle_seed=0):
     """locked回路で飛行。mode='ff'はω=0、'closed'はハルテア位相シフト帰還
     axis_gain=(cR,cP,cY): 軸別反射ゲイン (生物学対応: ハルテア反射の
     ゲイン調律は発達・飛行経験で較正される)。None時はPR.C_PHASE一律"""
@@ -117,8 +119,19 @@ def fly(gc, names2, means, mode="ff", T=2.0, axis_gain=None,
     kw = dict(SETUP_KW)
     if rec_gain is not None:
         kw["recruit"] = True
+    if shuffle:
+        kw["shuffle"] = shuffle
+        kw["shuffle_seed"] = shuffle_seed
+    # 較正復号モード: 回路の筋位相からωを復号し、ヒンジ有効性行列Bで
+    # 望むトルクをチャネル配分する。配線は不変、較正量のみ外部から与える
+    dec = None
+    if decode is not None:
+        Sg, phg, jg, Bpinv = decode
+        zc2 = {j: 0j for j in jg}
+        dec = True
     net, mon, pg, pref, side, st_idx, n = PR.setup(**kw)
     ch_idx = {mu: st_idx[mu] for mu in names2 if mu in st_idx}
+    st_idx_all = dict(st_idx) if dec else {}
     us = {mu: 0.0 for mu in names2}
     fs = {mu: 0.0 for mu in names2}
     # ヒンジの位相→振幅変換 (Tu & Dickinson 1996; Lindsay+ 2017):
@@ -128,8 +141,17 @@ def fly(gc, names2, means, mode="ff", T=2.0, axis_gain=None,
     use_ph = phase_gain is not None and phi0 is not None
     prev = 0
     shift_prev = np.zeros(len(pref))
-    om_f = np.zeros(3)   # 反射経路の低域通過 (感覚運動フィルタ, τ=50ms)
-    TAU_RFX = 0.05
+    # ハルテアによる周波数選択的復調 (Nalbach 1993; Fox & Daniel 2008):
+    # ハルテアは翅と同周波数・逆位相で拍動し、自身の運動によるコリオリ力を
+    # 測る。機体の羽ばたき反動振動 (±600rad/s, 拍動と同周波数) は積により
+    # 直流・2f成分となり、体の剛体回転だけが f 成分として現れる。つまり
+    # ハルテアは「1拍動周期の移動平均」を遅延ほぼ無しで実現している。
+    # 従来の50ms一次ローパスは70msのループ遅延を生み、0.3sで墜ちる不安定系
+    # には致命的だった。1周期ボックスカー (遅延=半周期2.5ms) に置き換える
+    NBOX = max(int((1.0 / Pw["freq"]) / CF.DT_N), 1)
+    ombuf = np.zeros((NBOX, 3))
+    ombi = 0
+    omsum = np.zeros(3)
     d = mujoco.MjData(m)
     mujoco.mj_resetData(m, d)
     d.qpos[2] = 12.0
@@ -148,8 +170,10 @@ def fly(gc, names2, means, mode="ff", T=2.0, axis_gain=None,
         tn = kn * CF.DT_N
         om = d.qvel[3:6]
         if mode == "closed":
-            om_f += CF.DT_N * (np.clip(om, -50, 50) - om_f) / TAU_RFX
-            o = np.clip(om_f, -12, 12)
+            omsum += om - ombuf[ombi]
+            ombuf[ombi] = om
+            ombi = (ombi + 1) % NBOX
+            o = np.clip(omsum / NBOX, -12, 12)
             if axis_gain is None:
                 cR = cP = cY = PR.C_PHASE
             else:
@@ -168,12 +192,17 @@ def fly(gc, names2, means, mode="ff", T=2.0, axis_gain=None,
         ph_w = (tn * Pw["freq"]) % 1.0
         nsp = mon.num_spikes
         if nsp > prev:
+            ev = np.exp(2j * np.pi * ph_w)
             for iN in np.array(mon.i[prev:nsp]):
                 for mu, im in ch_idx.items():
                     if int(iN) == im:
                         us[mu] += 1.0 / CF.TAU_A
                         if use_ph:
-                            zc[mu] += np.exp(2j * np.pi * ph_w)
+                            zc[mu] += ev
+                if dec:
+                    for j in jg:
+                        if int(iN) == st_idx_all.get(j, -1):
+                            zc2[j] += ev
             prev = nsp
         u14 = np.zeros(4)
         for jj, mu in enumerate(names2):
@@ -186,6 +215,23 @@ def fly(gc, names2, means, mode="ff", T=2.0, axis_gain=None,
                     dphi = np.angle(zc[mu]) / (2 * np.pi) - phi0[jj]
                     dphi = (dphi + 0.5) % 1.0 - 0.5   # [-0.5, 0.5)へ巻き戻し
                     u14 += phase_gain[jj] * dphi * M[jmap[jj]]
+        if dec:
+            # 回路の筋活動位相からωを復号 → 望む復元トルク → チャネル配分
+            dphi = np.zeros(len(jg))
+            okd = True
+            for q, j in enumerate(jg):
+                zc2[j] -= CF.DT_N * zc2[j] / TAU_P
+                if abs(zc2[j]) < 1e-3:
+                    okd = False
+                    break
+                dd = np.angle(zc2[j]) / (2 * np.pi) - phg[q]
+                dphi[q] = (dd + 0.5) % 1.0 - 0.5
+            if okd and tn > 0.15:
+                om_est = dphi @ Sg
+                a_des = -np.asarray(K, float) * om_est
+                u14 = u14 + a_des @ Bpinv
+                if OMLOG is not None and kn % 20 == 0:
+                    OMLOG.append((tn, *om_est, *o))
         if tn < 0.2:   # 起動橋渡し (回路の張力立ち上がり待ち)
             phc = (tn * Pw["freq"]) % 1.0
             i = min(int(phc * NB), NB - 1)
