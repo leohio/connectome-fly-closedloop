@@ -30,6 +30,7 @@ R_PEAK = 4000.0          # von Mises ピークレート (〜1発/周期)
 C_PHASE = 0.004          # ω→位相シフト [cycle/(rad/s)]
 C_GAIN = 0.01            # ω→ゲイン変調
 STEER = ["b1", "b2", "b3", "i1", "i2", "iii1", "iii3", "hg1", "hg2", "hg3", "hg4"]
+STEER_EXC = 4.0
 
 
 def build_subnet(shuffle=None, shuffle_seed=0, extra_ids=None):
@@ -86,7 +87,8 @@ def build_subnet(shuffle=None, shuffle_seed=0, extra_ids=None):
 
 
 def setup(gyro=True, shuffle=None, shuffle_seed=0,
-          extra_drive_ids=None):
+          extra_drive_ids=None, electrical=False,
+          afferent_mode="poisson", pref_mode="uniform"):
     mns = pd.read_csv("../vnc-connectome/downloads/elife-96084-supp3-v1.csv",
                       encoding="latin1")
     wm = mns[mns.subclass == "wm"]
@@ -110,7 +112,7 @@ def setup(gyro=True, shuffle=None, shuffle_seed=0,
             st_idx[f"{r.target}_{r.side}"] = idx[int(r.bodyid)]
     fac = np.ones(len(ids))
     for k, i in st_idx.items():
-        fac[i] = 4.0
+        fac[i] = STEER_EXC
     syn.w = syn.w[:] * fac[np.array(syn.j[:], dtype=int)]
     # ハルテア: 位相コーディング PoissonGroup (0.1msでレート更新)
     hal_L = [int(b) for b in hal[hal.entryNerve == "DMetaN_L"].bodyId if int(b) in idx]
@@ -119,17 +121,57 @@ def setup(gyro=True, shuffle=None, shuffle_seed=0,
     h_tgt = np.array([idx[b] for b in h_all])
     n_h = len(h_all)
     rng = np.random.default_rng(0)
-    pref = rng.uniform(0, 1, n_h)          # 好み位相 [cycle]
+    if pref_mode == "reversal":
+        # 生理的: 桿状感覚子はストローク反転(背側0.0/腹側0.5)近傍で発火
+        # (Yarger & Fox 2018)。2クラスタ+ジッタσ=0.03cycle
+        clus = rng.choice([0.0, 0.5], n_h)
+        pref = np.mod(clus + rng.normal(0, 0.03, n_h), 1.0)
+    else:
+        pref = rng.uniform(0, 1, n_h)          # 好み位相 [cycle]
     side = np.array([+1]*len(hal_L) + [-1]*len(hal_R))
-    pg = PoissonGroup(n_h, rates=0*Hz, name="hal_pg")
+    if afferent_mode == "locked":
+        # 決定論的位相振動子: 1周期1発を pref 位相で発火
+        # (桿状感覚子の位相固定発火の実測生理に基づく透過段モデル)
+        pg = NeuronGroup(n_h, "dv/dt = %f/second : 1" % WBF,
+                         threshold="v >= 1", reset="v -= 1",
+                         method="euler", name="hal_pg")
+        pg.v = 1.0 - pref
+    else:
+        pg = PoissonGroup(n_h, rates=0*Hz, name="hal_pg")
     sh = Synapses(pg, neu, on_pre="v_post += %f*mV" %
                   (vnc_model.PARAMS["w_syn"]*vnc_model.PARAMS["f_poi"]),
                   name="hsyn")
     sh.connect(i=np.arange(n_h), j=h_tgt)
+    el = None
+    if electrical:
+        # 電気シナプスモデル (化学コネクトームに欠落する既知の生物学:
+        # Fayyazuddin & Dickinson のハルテア→b1電気結合)。
+        # 実配線エッジ (ハルテア求心性→操舵MN, traced-connections) の上に
+        # 強・高速 (8mV, 0.5ms) の直接結合を追加する — 構造は解剖学のまま
+        ids_all, pre_a, post_a, w_a = vnc_model.build_arrays()
+        gid = {int(b): i for i, b in enumerate(ids_all)}
+        hal_gids = set(gid[b] for b in h_all if b in gid)
+        st_gids = {}
+        for kmu, imu in st_idx.items():
+            st_gids[int(ids[imu])] = imu
+        st_g2 = set(gid[b] for b in st_gids if b in gid)
+        e_pre, e_post = [], []
+        for p_, q_ in zip(pre_a, post_a):
+            if p_ in hal_gids and q_ in st_g2:
+                bpre = int(ids_all[p_]); bpost = int(ids_all[q_])
+                if bpre in [int(x) for x in h_all]:
+                    e_pre.append([int(x) for x in h_all].index(bpre))
+                    e_post.append(st_gids[bpost])
+        if e_pre:
+            el = Synapses(pg, neu, on_pre="v_post += 8*mV",
+                          delay=0.5*ms, name="elsyn")
+            el.connect(i=np.array(e_pre), j=np.array(e_post))
     for i in h_tgt:
         neu.rfc[i] = 0*ms
     mon = SpikeMonitor(neu, record=True)
     objs = [neu, syn, mon, pg, sh]
+    if electrical and el is not None:
+        objs.append(el)
     extras = None
     if extra_drive_ids is not None:
         ex = [int(b) for b in extra_drive_ids if int(b) in idx]
