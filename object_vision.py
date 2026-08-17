@@ -37,6 +37,10 @@ def get_tree_model(tree=(-18.0, 8.0), radius=1.2, height=24.0):
             'name="wing_right_fluid"',
             'name="wing_right_fluid" fluidshape="ellipsoid" '
             'fluidcoef="1.0 0.5 1.5 1.7 1.0"')
+        xml = xml.replace('<mujoco model=', '<mujoco model=', 1)
+        if '<worldbody>' in xml and '<size ' not in xml:
+            xml = xml.replace('<worldbody>',
+                '<size memory="32M"/><worldbody>', 1)
         if '<asset>' in xml:
             xml = xml.replace('<asset>',
                 '<asset><texture type="skybox" builtin="gradient" '

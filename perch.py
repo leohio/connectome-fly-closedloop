@@ -41,7 +41,7 @@ def run_demo(T=8.0, video=None, verbose=True, psi0=0.0,
     _R0 = np.zeros(9)
     mujoco.mju_quat2Mat(_R0, np.array(Q0))
     ZT_W = np.array([_R0[2], _R0[5], _R0[8]])
-    m = OV.get_tree_model(tree=TREE, radius=2.5, height=30.0)
+    m = OV.get_tree_model(tree=TREE, radius=3.0, height=30.0)
     d = mujoco.MjData(m)
     mujoco.mj_resetData(m, d)
     d.qpos[:3] = (2.0, 0.0, 12.0)
@@ -57,6 +57,15 @@ def run_demo(T=8.0, video=None, verbose=True, psi0=0.0,
                       "wing_yaw_right", "wing_roll_right",
                       "wing_pitch_right"]}
     tree_gid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "tree")
+    adh_ids = [i for i in range(m.nu)
+               if "adhere" in (mujoco.mj_id2name(
+                   m, mujoco.mjtObj.mjOBJ_ACTUATOR, i) or "")]
+    for ai in adh_ids:
+        m.actuator_gainprm[ai, 0] *= 20.0    # 衝突着地の運動量に耐える把持力
+    for g in range(m.ngeom):
+        gn = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, g) or ""
+        if "claw" in gn and "collision" in gn:
+            m.geom_margin[g] = 0.03          # 爪の吸着発動域
     # --- 神経回路: 物体視 + 腹髄触覚 (単一Network) ---
     eye = OV.CompoundEye(m)
     netO, monO, pgO, pix, r_side, groups, nO = OV.build_object_net()
@@ -158,7 +167,7 @@ def run_demo(T=8.0, video=None, verbose=True, psi0=0.0,
                 state = "LANDED"
                 wings_on = False
                 t_touch = t
-                log_lines.append(f"t={t:.2f} 接触→翅停止 "
+                log_lines.append(f"t={t:.2f} 接触→翅停止+爪吸着ON "
                                  f"(VNC応答×{touch_sig:.0f})")
             # 誘導
             mujoco.mju_quat2Mat(Rm, d.qpos[3:7])
@@ -198,12 +207,22 @@ def run_demo(T=8.0, video=None, verbose=True, psi0=0.0,
                                                 + Pw["pitch_bias"] + u[3] - u[4])
         d.ctrl[aid["wing_roll_left"]] = eL * Pw["roll_amp"] * np.sin(2 * ph2)
         d.ctrl[aid["wing_roll_right"]] = eR * Pw["roll_amp"] * np.sin(2 * ph2)
+        if state in ("BRAKE", "LANDED"):
+            for ai in adh_ids:
+                d.ctrl[ai] = 1.0    # looming→着地準備(吸着武装)/接触→把持継続
         mujoco.mj_step(m, d)
         # 接触は毎ステップ検出してラッチ (瞬間接触の取りこぼし防止)
         if not touch_latch:
             for ci in range(d.ncon):
-                if (d.contact[ci].geom1 == tree_gid or
-                        d.contact[ci].geom2 == tree_gid):
+                g1i, g2i = d.contact[ci].geom1, d.contact[ci].geom2
+                if g1i != tree_gid and g2i != tree_gid:
+                    continue
+                other = g2i if g1i == tree_gid else g1i
+                onm = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM,
+                                        int(other)) or ""
+                if "wing" in onm:
+                    continue    # 翅接触は脚触覚(ProLN)ではない → 判断に使わない
+                if True:
                     touch_latch = True
                     if verbose:
                         g1 = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM,
@@ -215,7 +234,8 @@ def run_demo(T=8.0, video=None, verbose=True, psi0=0.0,
                               f"dist={dd:.2f} z={d.qpos[2]:.2f} "
                               f"cdist={d.contact[ci].dist:.4f}", flush=True)
                     break
-        if not np.isfinite(d.qpos[2]) or d.qpos[2] < 0.3:
+        zlim = 0.05 if state == "LANDED" else 0.3
+        if not np.isfinite(d.qpos[2]) or d.qpos[2] < zlim:
             break
         dnow = np.hypot(d.qpos[0]-TREE[0], d.qpos[1]-TREE[1])
         dmin = min(dmin, dnow)
@@ -226,7 +246,7 @@ def run_demo(T=8.0, video=None, verbose=True, psi0=0.0,
             renderer.update_scene(d, camera=vcam)
             frames.append(renderer.render())
             next_f += 1.0 / 30
-        if t_touch is not None and t - t_touch > 0.6:
+        if t_touch is not None and t - t_touch > 1.5:
             break
         if verbose and k % 20000 == 0:
             dist = np.hypot(d.qpos[0]-TREE[0], d.qpos[1]-TREE[1])
@@ -236,6 +256,13 @@ def run_demo(T=8.0, video=None, verbose=True, psi0=0.0,
         import imageio
         imageio.mimsave(video, frames, fps=30)
     dist = np.hypot(d.qpos[0]-TREE[0], d.qpos[1]-TREE[1])
+    touching_end = any((d.contact[i].geom1 == tree_gid or
+                        d.contact[i].geom2 == tree_gid)
+                       for i in range(d.ncon))
+    spd = float(np.linalg.norm(d.qvel[:3]))
+    if state == "LANDED" and touching_end and spd < 2.0 and d.qpos[2] > 0.5:
+        state = "PERCHED"
+        log_lines.append(f"幹に静止: z={d.qpos[2]:.2f} 速度{spd:.2f} 接触維持")
     for ln in log_lines:
         print(ln, flush=True)
     print(f"終了: state={state} 最終距離{dist:.1f} 最接近{dmin:.1f} "
