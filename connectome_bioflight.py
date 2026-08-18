@@ -29,14 +29,19 @@ B_POL = TH[12 + N_U * N_X:]
 PR.WBF = float(P0["freq"])      # ハルテア-翅の機械的周波数結合
 PR.C_PHASE = 0.0015             # 生理的な位相シフト感度
 TAU_TW = 0.00425                # 筋単収縮 (Azevedo 2020)
+PERT_SIG = 1.5                  # 初期外乱の大きさ [rad/s]
 
 
-def calibrate(shuffle=None, seed=0):
-    """この翅周波数で神経ω復号行列Sと基準位相φ0を較正する"""
+def calibrate(shuffle=None, seed=0, n_mus=None):
+    """この翅周波数で神経ω復号行列Sと基準位相φ0を較正する。
+    n_mus を指定すると位相固定度Rの高い順にその本数だけ使う
+    (課題を難しくして配線特異性が行動に現れるかを見るため)"""
     import measure_S as MS
     MS.PR.WBF = PR.WBF
     S, R, base = MS.build(shuffle=shuffle, seed=seed)
     good = [i for i in range(len(MS.MUS)) if R[i] > 0.5]
+    if n_mus is not None and len(good) > n_mus:
+        good = sorted(good, key=lambda i: -R[i])[:n_mus]
     Sg = np.linalg.pinv(S[good]).T
     names = [MS.MUS[i] for i in good]
     phi0 = [base[MS.MUS[i]][0] for i in good]
@@ -63,7 +68,7 @@ def fly(src="true", dec=None, T=3.0, pert_seed=None, shuffle=None, seed=0):
     d.qpos[2] = 12.0
     d.qpos[3:7] = Q0
     if pert_seed is not None:
-        d.qvel[3:6] = np.random.default_rng(pert_seed).normal(0, 1.5, 3)
+        d.qvel[3:6] = np.random.default_rng(pert_seed).normal(0, PERT_SIG, 3)
     mujoco.mj_forward(m, d)
     dtp = m.opt.timestep
     kk = max(P0["sharp"], 1e-3)
