@@ -90,7 +90,7 @@ def build_subnet(shuffle=None, shuffle_seed=0, extra_ids=None):
 def setup(gyro=True, shuffle=None, shuffle_seed=0,
           extra_drive_ids=None, electrical=False,
           afferent_mode="poisson", pref_mode="uniform", recruit=False,
-          mn_ahp=False):
+          mn_ahp=False, electrical_shuffle=None):
     mns = pd.read_csv("../vnc-connectome/downloads/elife-96084-supp3-v1.csv",
                       encoding="latin1")
     wm = mns[mns.subclass == "wm"]
@@ -224,6 +224,16 @@ def setup(gyro=True, shuffle=None, shuffle_seed=0,
                     e_pre.append([int(x) for x in h_all].index(bpre))
                     e_post.append(st_gids[bpost])
         if e_pre:
+            # 重要な対照: 従来は化学シナプスだけをshuffleし、この補完した
+            # 高速電気経路は実配線のまま残していた。その条件はpartial-nullで
+            # あって完全な配線シャッフルではない。shuffle条件ではpre/post次数を
+            # 保存してpost対応だけを置換し、モデル補完した経路も対照化する。
+            # electrical_shuffle=False は旧結果の厳密再現専用。
+            do_el_shuffle = (shuffle is not None if electrical_shuffle is None
+                             else bool(electrical_shuffle))
+            if do_el_shuffle:
+                rng_el = np.random.default_rng(918273 + shuffle_seed)
+                e_post = list(rng_el.permutation(np.asarray(e_post, dtype=int)))
             el = Synapses(pg, neu, on_pre="v_post += 8*mV",
                           delay=0.5*ms, name="elsyn")
             el.connect(i=np.array(e_pre), j=np.array(e_post))

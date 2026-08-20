@@ -96,7 +96,7 @@ def fly(src="true", dec=None, T=3.0, pert_seed=None, shuffle=None, seed=0):
                                   + side * np.cos(2 * np.pi * pref) * o[2])
             pg.v = pg.v - (shift - shift_prev)
             shift_prev = shift
-            net.run(CF.DT_N * 1000 * _ms)
+            net.run(CF.DT_N * 1000 * _ms, namespace={})
             ph_w = (tn * P0["freq"]) % 1.0
             nsp = mon.num_spikes
             if nsp > prev:
@@ -122,14 +122,16 @@ def fly(src="true", dec=None, T=3.0, pert_seed=None, shuffle=None, seed=0):
             mujoco.mju_quat2Mat(R, d.qpos[3:7])
             zcv = np.array([R[2], R[5], R[8]])
             e_b = R.reshape(3, 3).T @ np.cross(zcv, ZT_W)
-            v = d.qvel[:3]
+            # Brian2 の膜電位変数 v とPython局所変数が衝突すると、net.runごとに
+            # 警告を生成してログと実行時間を膨らませるため別名にする。
+            vel = d.qvel[:3]
             if src == "true":
                 ow = o_slow
             elif src == "zero":
                 ow = np.zeros(3)
             else:
                 ow = om_est
-            x = np.array([(12.0 - d.qpos[2]) / 5.0, -v[2] / 30.0,
+            x = np.array([(12.0 - d.qpos[2]) / 5.0, -vel[2] / 30.0,
                           e_b[0], e_b[1],
                           ow[0] / 20.0, ow[1] / 20.0, ow[2] / 20.0])
             u_cmd = np.clip(U_TRIM + np.tanh(K_POL @ x + B_POL) * 0.35,

@@ -1,0 +1,18 @@
+{
+  "shuffle_seed": 0,
+  "disturbance_cache_equivalent": true,
+  "chemical": {
+    "n_edges": 66494,
+    "pre_and_outdegree_preserved": true,
+    "post_indegree_preserved": true,
+    "same_ordered_pairs": 81,
+    "same_pair_fraction": 0.0012181550215056998
+  },
+  "modeled_electrical": {
+    "n_edges": 109,
+    "pre_and_outdegree_preserved": true,
+    "post_indegree_preserved": true,
+    "same_ordered_pairs": 11,
+    "same_pair_fraction": 0.10091743119266056
+  }
+}

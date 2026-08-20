@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""統合32: 神経ω復号の質を、実配線と多数のシャッフルで統計比較する。
+"""統合32/33: 神経ω復号の質を、実配線とfull-nullで統計比較する。
 
 これまでのシャッフル対照は構成ごとに復号Sを再較正していたため、
 配線を変えても較正が吸収し、行動レベルでは差が出なかった。
@@ -9,7 +9,13 @@
 - S の条件数と感度の大きさ
 - **較正と異なるωでの復号誤差** (線形性・汎化の検定)
 
-実配線がシャッフル分布の外に出れば、それは行動に効きうる水準の配線特異性である。
+統合32当時のshuffleは化学配線だけを置換し、補完したハルテア→MN電気経路を
+実配線のまま残していた (partial-null)。統合33では phase_reflex.setup が
+化学・電気の両方を次数保存で置換する。旧結果は
+outputs/decode_quality_partial_null.json に保存し、本スクリプトの出力は
+full-nullとして別名にする。
+
+実配線がfull-null分布の外に出れば、それは行動に効きうる水準の配線特異性である。
 """
 import sys
 import numpy as np
@@ -85,7 +91,7 @@ if __name__ == "__main__":
         print(f"{name:22s} 実={rv:8.4f}  シャッフル={v.mean():8.4f}"
               f"±{v.std():.4f}  z={z:+.2f}  上位{100-pct:.0f}%", flush=True)
     import json
-    json.dump(res, open("outputs/decode_quality.json", "w"),
+    json.dump(res, open("outputs/decode_quality_full_null.json", "w"),
               default=float)
     # 片側の経験的p値 (実配線がシャッフルより復号誤差が小さい確率)
     ev = np.array([r["err"] for r in shuf], float)
@@ -93,4 +99,5 @@ if __name__ == "__main__":
     n_better = int((ev <= real["err"]).sum())
     print(f"\n片側経験的p値 (復号誤差): {(n_better + 1) / (len(ev) + 1):.4f} "
           f"(シャッフル{len(ev)}個中{n_better}個が実配線以下)", flush=True)
+    print("保存 outputs/decode_quality_full_null.json", flush=True)
     print("DONE", flush=True)

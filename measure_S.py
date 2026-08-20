@@ -31,8 +31,13 @@ def phases(om, shuffle=None, seed=0):
     shift = PR.C_PHASE * (side * o[0] + o[1]
                           + side * np.cos(2 * np.pi * pref) * o[2])
     pg.v = pg.v - shift
-    for kn in range(int(T / CF.DT_N)):
-        net.run(CF.DT_N * 1000 * _ms)
+    # This is a neural-only calibration with a constant angular-velocity
+    # condition.  Unlike the flight loop, no body state is exchanged every
+    # 0.1 ms, so repeatedly calling ``run`` only recompiles/checks the same
+    # schedule 5,000 times.  A single continuous run is mathematically
+    # identical for the autonomous locked-afferent network and is orders of
+    # magnitude faster.
+    net.run(T * 1000 * _ms, namespace={})
     tr = mon.spike_trains()
     out = {}
     for mu in MUS:
