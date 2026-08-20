@@ -143,18 +143,30 @@ def lsq_err(d):
     return _test_err(W, d)
 
 
+N_DRAW = 3   # 全構成に同数の教師・エピソード系列を与えて平均する
+              # (実配線だけ複数系列にすると順位検定の交換可能性が壊れるため)
+
+
 def job(a):
     tag, seed = a
     sh = "all" if tag == "shuffle" else None
     try:
-        d = episodes(shuffle=sh, seed=seed, rng_seed=seed)
-        if d is None:
-            return dict(tag=tag, seed=seed, failed="位相固定筋が3本未満")
-        W, curve = learn(d, rng_seed=seed)
-        cond = float(np.linalg.cond(d["X_tr"]))
-        return dict(tag=tag, seed=seed, n_mus=d["n_mus"],
+        curves, lsqs, conds, n_mus = [], [], [], None
+        for dr in range(N_DRAW):
+            d = episodes(shuffle=sh, seed=seed, rng_seed=1000 * dr + seed)
+            if d is None:
+                return dict(tag=tag, seed=seed, failed="位相固定筋が3本未満")
+            W, curve = learn(d, rng_seed=1000 * dr + seed)
+            curves.append(curve)
+            lsqs.append(lsq_err(d))
+            conds.append(float(np.linalg.cond(d["X_tr"])))
+            n_mus = d["n_mus"]
+        curve = {k: float(np.mean([c[k] for c in curves]))
+                 for k in curves[0]}
+        return dict(tag=tag, seed=seed, n_mus=n_mus, n_draw=N_DRAW,
                     curve={str(k): v for k, v in curve.items()},
-                    final=curve[max(curve)], lsq=lsq_err(d), cond_X=cond)
+                    final=curve[max(curve)], lsq=float(np.mean(lsqs)),
+                    cond_X=float(np.mean(conds)))
     except Exception as exc:
         return dict(tag=tag, seed=seed, failed=str(exc))
 
