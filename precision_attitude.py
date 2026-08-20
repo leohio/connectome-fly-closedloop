@@ -445,6 +445,72 @@ def fixed_population(argv):
     print("DONE", flush=True)
 
 
+def _matched_population_job(arg):
+    """full-null配線に、その配線自身で較正し直した読出しを与える。"""
+    wiring_seed, pert, amp, duration = arg
+    try:
+        dec, sh, _ = load_decoder("shuffle", wiring_seed)
+    except Exception as exc:
+        return dict(label=f"shuffle_{wiring_seed}", wiring_seed=wiring_seed,
+                    failed=str(exc), survival=0.0, tilt_rms=1.0,
+                    tilt_fixed_rms=1.0, tilt_p95=1.0, omega_rms=0.0,
+                    z_mae=20.0, decode_nrmse_clip=None,
+                    decode_nrmse_full=None)
+    r = fly(src="shuffle", dec=dec, T=duration, amp=amp, pert_seed=pert,
+            shuffle=sh, seed=wiring_seed)
+    r["label"] = f"shuffle_{wiring_seed}"
+    r["wiring_seed"] = wiring_seed
+    return r
+
+
+def matched_population(argv):
+    """統合34: 各配線に自前の読出しを与えたときも実配線が優れるかの検定。
+
+    fixed-pop は「実配線用の読出しを固定して上流を交換する」問いであり、
+    読出しが不整合になる以上ヌルが劣るのは構成上ほぼ自明である。
+    ここでは全配線に等しく再較正の機会を与え、それでも実配線が
+    full-null分布の外に出るかを見る。統合33の matched (ヌル4構成) の母集団版。
+    """
+    n_shuffle = int(argv[0]) if argv else 40
+    pert = int(argv[1]) if len(argv) > 1 else 2
+    amp = float(argv[2]) if len(argv) > 2 else DEFAULT_AMP
+    duration = float(argv[3]) if len(argv) > 3 else 2.0
+    dec, _, _ = load_decoder("circuit", 0)
+    real = fly(src="circuit", dec=dec, T=duration, amp=amp,
+               pert_seed=pert, seed=0)
+    jobs = [(seed, pert, amp, duration) for seed in range(n_shuffle)]
+    with Pool(min(12, len(jobs))) as pool:
+        out = pool.map(_matched_population_job, jobs)
+    ok = [r for r in out if not r.get("failed")]
+    n_fail = len(out) - len(ok)
+    fixed_v = np.array([r["tilt_fixed_rms"] for r in ok])
+    srv = np.array([r["survival"] for r in ok])
+    n_le = int(np.sum(fixed_v <= real["tilt_fixed_rms"] + 1e-12))
+    p_fixed = (n_le + 1) / (len(ok) + 1)
+    n_ge = int(np.sum(srv >= real["survival"] - 1e-9))
+    p_emp = (n_ge + 1) / (len(ok) + 1)
+    print(f"各配線に自前の読出しを与えた場合 (外乱位相{pert}, n={len(ok)}"
+          f"{'、較正失敗' + str(n_fail) if n_fail else ''})", flush=True)
+    print(f"  実配線     : 固定時間姿勢RMS={real['tilt_fixed_rms']:.4f} "
+          f"生存{real['survival']:.2f}s", flush=True)
+    print(f"  full-null  : 中央値={np.median(fixed_v):.4f} "
+          f"IQR={np.percentile(fixed_v, 25):.4f}-"
+          f"{np.percentile(fixed_v, 75):.4f} "
+          f"平均={fixed_v.mean():.4f}±{fixed_v.std():.4f}", flush=True)
+    print(f"  実配線以下 : {n_le}/{len(ok)}  片側経験的p={p_fixed:.4f}",
+          flush=True)
+    print(f"  生存で見ると: 実以上={n_ge}/{len(ok)} p={p_emp:.4f}", flush=True)
+    payload = dict(real=real, shuffles=out, n_le=n_le, p_fixed=p_fixed,
+                   n_ge=n_ge, p_emp=p_emp, n_shuffle=len(ok),
+                   n_failed=n_fail, pert_seed=pert, amp=amp,
+                   duration=duration)
+    path = f"outputs/precision_matched_population_p{pert}.json"
+    with open(path, "w") as f:
+        json.dump(payload, f, indent=2)
+    print(f"保存 {path}", flush=True)
+    print("DONE", flush=True)
+
+
 def _legacy_fixed_cost(q, duration):
     """tilt_fixed_rms追加前に保存した結果も同じ定義で読めるようにする。"""
     if "tilt_fixed_rms" in q:
@@ -548,6 +614,8 @@ if __name__ == "__main__":
         fixed(sys.argv[2:])
     elif len(sys.argv) > 1 and sys.argv[1] == "fixed-pop":
         fixed_population(sys.argv[2:])
+    elif len(sys.argv) > 1 and sys.argv[1] == "matched-pop":
+        matched_population(sys.argv[2:])
     elif len(sys.argv) > 1 and sys.argv[1] == "combine-pop":
         combine_population(sys.argv[2:])
     elif len(sys.argv) > 1 and sys.argv[1] == "audit-null":
