@@ -22,7 +22,8 @@ def job(a):
     import connectome_bioflight as CB
     import reward_K as RK
     res = json.load(open("outputs/reward_K.json"))
-    best = max(res, key=lambda r: r["final"])
+    sel = json.load(open("outputs/reward_K_selected.json"))["selected_seed"]
+    best = [r for r in res if r["seed"] == sel][0]
     th_learned = np.array(best["theta"])
     # 帰還則を学習品へ差し替え (K_POL/B_POL は connectome_bioflight のモジュール変数)
     if which in ("learnedK", "full_bio"):
@@ -40,7 +41,7 @@ def job(a):
 
 if __name__ == "__main__":
     modes = ["full_bio", "learnedK", "calibrated"]
-    jobs = [(m, p) for m in modes for p in [0, 1]]
+    jobs = [(m, p) for m in modes for p in [0, 1, 2, 3]]
     with Pool(len(jobs)) as pool:
         out = pool.map(job, jobs)
     lab = {"full_bio": "全適応要素が生物学的学習 (K=報酬学習, W=局所則)",
