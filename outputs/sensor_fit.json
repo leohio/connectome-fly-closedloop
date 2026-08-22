@@ -1,0 +1,20 @@
+{
+ "x": {
+  "G": 0.801,
+  "tau_ms": 12.0,
+  "noise_std": 1.95,
+  "noise_tau_ms": 7.4
+ },
+ "y": {
+  "G": 0.92,
+  "tau_ms": 12.0,
+  "noise_std": 1.86,
+  "noise_tau_ms": 8.4
+ },
+ "z": {
+  "G": 0.909,
+  "tau_ms": 12.0,
+  "noise_std": 1.84,
+  "noise_tau_ms": 6.0
+ }
+}

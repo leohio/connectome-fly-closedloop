@@ -33,13 +33,18 @@ import bioflight as BF
 TH = np.load("outputs/bioflight_best.npy")
 INNATE = TH[:12].copy()          # 生得: 翅運動学+トリム
 N_PAR = BF.N_U * BF.N_X + BF.N_U # 40
-N_EP = 600                       # 試行対の数 (飛行回数はこの2倍)
+N_EP = int(__import__('os').environ.get('N_EP_OVERRIDE', '600'))  # 試行対の数
 SIGMA = 0.05
 ALPHA = 0.02
 MAX_STEP = 0.05                  # 1更新のノルム上限
 CHECK = 50                       # 学習曲線の評価間隔
 
 
+SENSOR_G = np.array([0.80, 0.92, 0.91])   # 実測ゲイン (統合36d)
+SENSOR_BIAS = np.array([-0.78, -0.91, -0.62])
+SENSOR_NSTD = 1.9
+SENSOR_NTAU = 0.007
+SENSOR_DELAY = int(__import__('os').environ.get('SENSOR_DELAY', '0'))   # 追加の純遅延 [羽ばたき数]。実回路はシナプス・積分でさらに遅い疑い
 SENSOR = "circuit_model"   # "true"=真の遅いω / "circuit_model"=回路復号の遅延・ノイズ模型
 
 
@@ -79,8 +84,8 @@ def rollout_sensed(theta, pert_seed, T=3.0, sensor=None, noise_seed=0):
     u = np.array(u_trim, float)
     om_sen = np.zeros(3)
     TAU_TW = 0.00425
-    TAU_DEC = 0.010                    # 回路の位相推定 zc 減衰と同じ
-    ups, zs, alive = [], [], 0
+    TAU_DEC = 0.012                    # 実測の復号遅れ (統合36d)
+    ups, zs, oms, alive = [], [], [], 0
     for k in range(int(T / dtp)):
         t = k * dtp
         ssum += d.qvel[3:6] - buf[bi]
@@ -94,10 +99,28 @@ def rollout_sensed(theta, pert_seed, T=3.0, sensor=None, noise_seed=0):
             v = d.qvel[:3]
             o_slow = ssum / NB
             if sensor == "circuit_model":
-                tgt = np.clip(o_slow, -12, 12)
-                tgt = tgt + rgn.normal(0, 0.2 * np.linalg.norm(tgt) + 0.5, 3)
-                om_sen += hold * (tgt - om_sen) / TAU_DEC   # 復号の一次遅れ
-                ow = om_sen if t > 0.12 else np.zeros(3)     # 起動ゲート
+                # 統合36dの実測同定 (outputs/sensor_fit.json):
+                # est = G·lowpass(true,12ms) + bias + AR(1)ノイズ(std1.9, τ7ms)
+                tgt = SENSOR_G * np.clip(o_slow, -12, 12) + SENSOR_BIAS
+                om_sen += hold * (tgt - om_sen) / TAU_DEC
+                ar_a = np.exp(-hold / SENSOR_NTAU)
+                ar_state = getattr(rollout_sensed, "_ar", None)
+                nz = rgn.normal(0, SENSOR_NSTD * np.sqrt(1 - ar_a**2), 3)
+                if ar_state is None or ar_state[0] != id(d):
+                    ar = nz
+                else:
+                    ar = ar_a * ar_state[1] + nz
+                rollout_sensed._ar = (id(d), ar)
+                ow_now = om_sen + ar
+                if SENSOR_DELAY > 0:
+                    dbuf = getattr(rollout_sensed, "_dbuf", None)
+                    if dbuf is None or dbuf[0] != id(d):
+                        dbuf = (id(d), [np.zeros(3)] * SENSOR_DELAY)
+                    ow_del = dbuf[1].pop(0)
+                    dbuf[1].append(ow_now.copy())
+                    rollout_sensed._dbuf = dbuf
+                    ow_now = ow_del
+                ow = ow_now if t > 0.12 else np.zeros(3)
             else:
                 ow = o_slow
             x = np.array([(12.0 - d.qpos[2]) / 5.0, -v[2] / 30.0,
@@ -126,17 +149,26 @@ def rollout_sensed(theta, pert_seed, T=3.0, sensor=None, noise_seed=0):
         mujoco.mju_quat2Mat(R, d.qpos[3:7])
         ups.append(np.array([R[2], R[5], R[8]]) @ ZT_W)
         zs.append(d.qpos[2])
+        # 体角速度の遅い成分 (復号が見る量)。瞬時値は羽ばたき反動振動
+        # (±60rad/s級) が支配するため、ペナルティには使えない (統合36f)
+        oms.append(float(np.linalg.norm(ssum / NB)))
         alive = k + 1
     srv = alive * dtp
     up = float(np.mean(ups)) if ups else 0.0
     ze = float(np.mean(np.abs(np.array(zs) - 12.0))) if zs else 20.0
-    return srv, up, ze
+    om_m = float(np.mean(oms)) if oms else 0.0
+    return srv, up, ze, om_m
+
+
+LAM_OM = 0.05   # 体角速度ペナルティ。統合36eの解剖: 学習Kは|ω|~25の飽和域で飛び
+                # (復号線形域は~12、ES-Kは中央値11.5)、感覚喪失で墜落していた。
+                # 高速回転は危険でハエ自身が感知できる量なので報酬に含める
 
 
 def episode_reward(theta, pert_seed, noise_seed=0):
     """1エピソード = 指定の突風から3秒間飛ぶ。報酬はハエが感知できる量のみ"""
-    srv, up, ze = rollout_sensed(theta, pert_seed, noise_seed=noise_seed)
-    return srv + 0.5 * max(up, 0.0) - 0.03 * min(ze, 20.0)
+    srv, up, ze, om_m = rollout_sensed(theta, pert_seed, noise_seed=noise_seed)
+    return srv + 0.5 * max(up, 0.0) - 0.03 * min(ze, 20.0) - LAM_OM * om_m
 
 
 def evaluate(theta, n=2):
@@ -147,8 +179,25 @@ def evaluate(theta, n=2):
 
 
 def run(seed):
+    try:
+        return _run_inner(seed)
+    except Exception as exc:
+        import traceback
+        return dict(seed=seed, failed=traceback.format_exc()[-500:],
+                    curve=[], reached=None, final=0.0, theta=[])
+
+
+def _run_inner(seed):
+    import os
     rg = np.random.default_rng(31000 + seed)
-    th = np.zeros(N_PAR)
+    ft = os.environ.get("FINETUNE")
+    if ft:
+        import json as _j
+        allr = _j.load(open(ft))
+        sel = _j.load(open("outputs/reward_K_selected.json"))["selected_seed"]
+        th = np.array([r for r in allr if r["seed"] == sel][0]["theta"])
+    else:
+        th = np.zeros(N_PAR)
     curve, reached = [], None
     for ep in range(N_EP):
         xi = rg.standard_normal(N_PAR)
@@ -166,6 +215,7 @@ def run(seed):
         if (ep + 1) % CHECK == 0:
             s_eval = evaluate(np.concatenate([INNATE, th]))
             curve.append((ep + 1, s_eval))
+            print(f"[個体{seed}] {ep+1}対 eval={s_eval:.2f}s", flush=True)
             if reached is None and s_eval >= 2.995:
                 reached = ep + 1
     return dict(seed=seed, curve=curve, reached=reached,
@@ -179,6 +229,10 @@ if __name__ == "__main__":
         res = p.map(run, range(n_runs))
     base = evaluate(np.concatenate([INNATE, np.zeros(N_PAR)]), n=4)
     print(f"開ループ (K=0, 幼体): 生存{base:.2f}s", flush=True)
+    bad = [r for r in res if r.get("failed")]
+    for r in bad:
+        print(f"個体{r['seed']} 失敗: {r['failed'][-200:]}", flush=True)
+    res = [r for r in res if not r.get("failed")]
     for r in res:
         tail = ", ".join(f"{e}:{s:.2f}" for e, s in r["curve"][::6])
         rc = f"{r['reached']}ep で3.00s到達" if r["reached"] else "未到達"
