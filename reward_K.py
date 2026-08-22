@@ -50,10 +50,15 @@ SENSOR_DELAY = int(__import__('os').environ.get('SENSOR_DELAY', '0'))   # 追加
 #   (小傾きゲイン0.76、|e_b|=0.97で0.52、遅延24ms、ノイズ1.1° を再現)
 VISION_MODEL = int(__import__('os').environ.get('VISION_MODEL', '0'))
 TAU_VIS = 0.03
+DEBUG_LOG = None    # listで(t,z,vz,amp,up)記録
+JUMP_VZ = 0.0       # 離陸時の脚ジャンプ速度 [unit/s]
+FREQ_REFLEX = 0.0   # 高度誤差→羽ばたき周波数の反射ゲイン (実バエの揚力調節軸)
 SENSOR = "circuit_model"   # "true"=真の遅いω / "circuit_model"=回路復号の遅延・ノイズ模型
 
 
-def rollout_sensed(theta, pert_seed, T=3.0, sensor=None, noise_seed=0):
+def rollout_sensed(theta, pert_seed, T=3.0, sensor=None, noise_seed=0,
+                   z_fn=None, alt_reflex=None, hold_until=0.0, z_floor=None,
+                   start_z=12.0):
     """BF.rollout と同一だが、ω感覚に回路復号の特性模型を挟める。
 
     統合36bの転移失敗の原因究明用: 学習Kは真の遅いωでは3.00s飛ぶが、
@@ -135,14 +140,43 @@ def rollout_sensed(theta, pert_seed, T=3.0, sensor=None, noise_seed=0):
                 eb_use = eb_sen + rgn.normal(0, 0.019, 2)
             else:
                 eb_use = e_b[:2]
-            x = np.array([(12.0 - d.qpos[2]) / 5.0, -v[2] / 30.0,
+            z_t = z_fn(t) if z_fn is not None else 12.0
+            # 訓練分布外の大きな高度誤差はKに揚力を失う波形を出させる。
+            # 政策への入力は訓練域にクランプし、大誤差の上昇は生得反射が担う
+            x0 = (z_t - d.qpos[2]) / 5.0
+            if z_fn is not None:
+                x0 = np.clip(x0, -0.5, 0.5)
+            x = np.array([x0, -v[2] / 30.0,
                           eb_use[0], eb_use[1],
                           ow[0] / 20.0, ow[1] / 20.0, ow[2] / 20.0])
             u_cmd = np.clip(u_trim + np.tanh(K @ x + bb) * 0.35, -0.55, 0.55)
+            if alt_reflex is not None:
+                # 生得の高度制御が振幅チャネルを専有する (動力筋系)。
+                # 学習Kは操舵筋系 u1-u4 のみを担う分業
+                kz_, kv_ = alt_reflex
+                # 揚力は振幅増で「増えない」(実測: amp1.3で崩壊)。
+                # 下げ方向のみ有効な非対称制御 (amp<1は確実に沈む)
+                u_cmd[0] = np.clip(kz_ * np.tanh((z_t - d.qpos[2]) / 2.0)
+                                   - kv_ * v[2] / 10.0, -0.35, 0.05)
         u += dtp * (u_cmd - u) / TAU_TW
         amp = np.clip(1.0 + u[0], 0.5, 1.6)
+        if FREQ_REFLEX > 0 and z_fn is not None:
+            ferr = np.tanh((z_fn(t) - d.qpos[2]) / 2.0)
+            f_mul = np.clip(1.0 + FREQ_REFLEX * ferr
+                            - 0.05 * d.qvel[2] / 10.0, 0.90, 1.15)
+            ph_adv = 2 * np.pi * P["freq"] * f_mul * dtp
+        else:
+            ph_adv = 2 * np.pi * P["freq"] * dtp
+        ph_acc = getattr(rollout_sensed, "_ph", None)
+        if ph_acc is None or ph_acc[0] != id(d):
+            ph_acc = (id(d), 0.0)
+        ph2_c = ph_acc[1] + ph_adv
+        rollout_sensed._ph = (id(d), ph2_c)
+        if DEBUG_LOG is not None and k % 100 == 0:
+            mujoco.mju_quat2Mat(R, d.qpos[3:7])
+            DEBUG_LOG.append((t, d.qpos[2], d.qvel[2], amp, R[8]))
         env0 = min(t / 0.03, 1.0)
-        ph2 = 2 * np.pi * P["freq"] * t
+        ph2 = ph2_c
         sn = np.sin(ph2)
         rot = np.tanh(kk * np.cos(ph2 + P["phase"])) / np.tanh(kk)
         e = env0 * amp
@@ -156,7 +190,14 @@ def rollout_sensed(theta, pert_seed, T=3.0, sensor=None, noise_seed=0):
         d.ctrl[aid["wing_roll_left"]] = e * P["roll_amp"] * np.sin(2 * ph2)
         d.ctrl[aid["wing_roll_right"]] = e * P["roll_amp"] * np.sin(2 * ph2)
         mujoco.mj_step(m, d)
-        if not np.isfinite(d.qpos[2]) or d.qpos[2] < 0.5 or d.qpos[2] > 40:
+        if t < hold_until:
+            d.qpos[0:3] = [0.0, 0.0, start_z]
+            d.qpos[3:7] = Q0        # 脚支持は姿勢も保持する
+            d.qvel[0:6] = 0.0
+            if k == int(hold_until / dtp) - 1 and JUMP_VZ > 0:
+                d.qvel[2] = JUMP_VZ   # GF離陸ジャンプ (脚の跳躍インパルス)
+        zlim = 0.5 if z_floor is None else z_floor
+        if not np.isfinite(d.qpos[2]) or d.qpos[2] < zlim or d.qpos[2] > 40:
             break
         mujoco.mju_quat2Mat(R, d.qpos[3:7])
         ups.append(np.array([R[2], R[5], R[8]]) @ ZT_W)

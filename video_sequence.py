@@ -14,9 +14,9 @@ from PIL import Image, ImageDraw, ImageFont
 W_, H_ = 1280, 720
 FPS = 60
 GLOW = 0.05
-PHASE_NAMES = {0: "歩行 (MDN)", 1: "離陸 (GF)", 2: "飛行", 3: "降下"}
+PHASE_NAMES = {0: "歩行 (MDN)", 1: "離陸 (GF)", 2: "飛行", 3: "降下", 4: "着陸・静定"}
 PHASE_COL = {0: (94, 234, 141), 1: (250, 204, 21), 2: (56, 227, 238),
-             3: (255, 159, 64)}
+             3: (255, 159, 64), 4: (200, 160, 255)}
 
 
 def brain_layout():
@@ -152,10 +152,10 @@ def compose():
                     (14 + t / T_end * 600 + 5, y0 + 26),
                     (14 + t / T_end * 600, y0 + 18)], fill=(255, 255, 255))
         yl = y0 + 34
-        for pid in (0, 1, 2, 3):
+        for pid in (0, 1, 2, 3, 4):
             c = PHASE_COL[pid]
-            dr.rectangle([14 + pid * 150, yl, 26 + pid * 150, yl + 12], fill=c)
-            dr.text((30 + pid * 150, yl - 2), PHASE_NAMES[pid], font=f_sm,
+            dr.rectangle([14 + pid * 122, yl, 26 + pid * 122, yl + 12], fill=c)
+            dr.text((30 + pid * 122, yl - 2), PHASE_NAMES[pid], font=f_sm,
                     fill=(200, 208, 228))
         # --- 脳パネル ---
         dr.text((BX0 + 40, 8), "FlyWire脳 (実座標) — 視覚回路と下行指令DN",

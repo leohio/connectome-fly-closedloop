@@ -54,7 +54,7 @@ def build_command_group():
     return net, mon, pg, sl, ids
 
 
-def main(T_total=11.0, out="outputs/seq_record.npz"):
+def main(T_total=12.5, out="outputs/seq_record.npz"):
     import openloop_hover as OH
     import phase_reflex as PR
     import connectome_fastloop as CF
@@ -202,6 +202,9 @@ def main(T_total=11.0, out="outputs/seq_record.npz"):
     gf_seen = 0
     took_off = False
     landed_hold = 0.0
+    contact_acc = 0.0
+    ph_acc = 0.0
+    t_settle = None
     # 意図スケジュール: 0-2.2s MDN → 2.2s GF → 飛行 → 6.8sから降下 → 接地で歩行
     def intent(tn):
         r = np.zeros(len(cids))
@@ -230,7 +233,31 @@ def main(T_total=11.0, out="outputs/seq_record.npz"):
             print(f"t={t:.2f}s GF発火{gf_now} → 離陸", flush=True)
         gf_seen = max(gf_seen, gf_now)
         # ---- フェーズ実行 ----
-        if mode in ("walk",):
+        if mode == "settle":
+            # 着陸後の静定: 翅停止・立位保持。直立が戻ったら歩行再開
+            for n2, i2 in act_ids.items():
+                d.ctrl[i2] = stance[n2]
+            for w2 in ("wing_yaw_left", "wing_yaw_right", "wing_pitch_left",
+                       "wing_pitch_right", "wing_roll_left",
+                       "wing_roll_right"):
+                d.ctrl[aid[w2]] = 0
+            for _ in range(int(DT_WALK / dtp)):
+                mujoco.mj_step(m, d)
+            t += DT_WALK
+            mujoco.mju_quat2Mat(R, d.qpos[3:7])
+            if t - t_settle > 0.6 and R[8] > 0.85:
+                mode = "walk"
+                took_off = True
+                prev_cmd.clear()               # 歩行状態を新規に (残留指令の排除)
+                for kf2 in F:
+                    F[kf2][:] = 0.0
+                print(f"t={t:.2f}s 静定完了 (直立{R[8]:+.2f}) → 歩行再開",
+                      flush=True)
+            elif t - t_settle > 2.5:
+                print(f"t={t:.2f}s 静定失敗 (直立{R[8]:+.2f})", flush=True)
+                mode = "walk"
+                took_off = True
+        elif mode in ("walk",):
             # 統合38c の1窓 (2ms)
             fr6[:] = 0
             fbuf = np.zeros(6)
@@ -315,7 +342,7 @@ def main(T_total=11.0, out="outputs/seq_record.npz"):
                 fnet.run(CF.DT_N * 1000 * _ms)
                 if kn_f % 20 == 0:
                     mark("fly", fnet)
-                ph_w = ((t - t_flight0) * P0["freq"]) % 1.0
+                ph_w = (ph_acc / (2 * np.pi)) % 1.0
                 nsp = fmon.num_spikes
                 if nsp > fprev:
                     ev = np.exp(2j * np.pi * ph_w)
@@ -353,40 +380,54 @@ def main(T_total=11.0, out="outputs/seq_record.npz"):
                 if t >= t_nextcmd:
                     t_nextcmd = t + per
                     v3 = d.qvel[:3]
-                    x = np.array([(z_target - d.qpos[2]) / 5.0,
+                    x0 = np.clip((z_target - d.qpos[2]) / 5.0, -0.5, 0.5)
+                    x = np.array([x0,
                                   -v3[2] / 30.0, eb_est[0], eb_est[1],
                                   om_est[0] / 20.0, om_est[1] / 20.0,
                                   om_est[2] / 20.0])
                     u_cmd = np.clip(U_TRIM + np.tanh(K_POL @ x + B_POL)
                                     * 0.35, -0.55, 0.55)
+                    # 生得高度反射: 振幅は下げ方向のみ有効 (揚力実測の制約)
+                    # 揚力地形の実測: 振幅は1.0のみ機能 (±5%で崩壊)。
+                    # 高度は周波数軸のみで制御する (x0.92=強沈下, x1.15=中立)
+                    u_cmd[0] = 0.0
                 tf = t - t_flight0
-                env0 = min(tf / 0.05, 1.0)
+                env0 = min(tf / 0.15, 1.0)   # 脚支持中にゆっくり推力を立てる
                 if mode == "takeoff":
-                    z_target = min(0.2 + 8.0 * tf, 12.0)
-                    if z_target >= 12.0:
+                    z_target = min(0.2 + 1.5 * tf, 2.0)
+                    if z_target >= 2.0 and tf > 1.2:
                         mode = "flight"
-                        print(f"t={t:.2f}s 巡航へ", flush=True)
-                elif mode == "flight" and tf > 4.2:
+                        print(f"t={t:.2f}s 低空巡航へ", flush=True)
+                elif mode == "flight" and tf > 3.5:
                     mode = "descend"
                     print(f"t={t:.2f}s 降下開始", flush=True)
                 elif mode == "descend":
-                    z_target = max(z_target - 9.0 * CF.DT_N, 0.05)
-                    if d.qpos[2] < 1.0 and d.ncon > 0:
-                        floor_touch = any(
-                            d.contact[c].geom1 == W["floor"]
-                            or d.contact[c].geom2 == W["floor"]
-                            for c in range(d.ncon))
-                        if floor_touch:
-                            mode = "walk"
-                            took_off = True
-                            landed_hold = t
-                            print(f"t={t:.2f}s 接地 → 歩行復帰", flush=True)
+                    z_target = max(z_target - 0.8 * CF.DT_N, 0.05)
+                    floor_touch = any(
+                        d.contact[c].geom1 == W["floor"]
+                        or d.contact[c].geom2 == W["floor"]
+                        for c in range(d.ncon))
+                    # 跗節接触の着陸反射: 降下中に脚が触れたら即座に翅停止
+                    # (実バエのtarsal contact→wing stop反射)
+                    if floor_touch and z_target < 0.6:
+                        mujoco.mju_quat2Mat(R, d.qpos[3:7])
+                        up_now = R[8]
+                        if up_now > 0.75 and abs(d.qvel[2]) < 10.0:
+                            mode = "settle"
+                            t_settle = t
+                            print(f"t={t:.2f}s 接地 (直立{up_now:+.2f}, "
+                                  f"vz{d.qvel[2]:+.1f}) → 静定", flush=True)
                             break
+                        # 姿勢不良の接触では着陸せず飛行を続けて仕切り直す
+                ferr = np.tanh((z_target - d.qpos[2]) / 2.0)
+                f_mul = np.clip(1.0 + 0.12 * ferr - 0.05 * d.qvel[2] / 10.0,
+                                0.90, 1.15)
                 for _ in range(int(CF.DT_N / dtp)):
                     tt = t
                     u += dtp * (u_cmd - u) / CB.TAU_TW
                     amp = np.clip(1.0 + u[0], 0.5, 1.6)
-                    ph2 = 2 * np.pi * P0["freq"] * (tt - t_flight0)
+                    ph_acc += 2 * np.pi * P0["freq"] * f_mul * dtp
+                    ph2 = ph_acc
                     s2 = np.sin(ph2)
                     rot = np.tanh(kk * np.cos(ph2 + P0["phase"])) / np.tanh(kk)
                     e2 = env0 * amp
@@ -435,7 +476,7 @@ def main(T_total=11.0, out="outputs/seq_record.npz"):
              fly_t=fT, fly_i=fI, vis_t=vT, vis_i=vI,
              t_flight0=t_flight0 if t_flight0 else -1.0,
              phase=np.array([(p[0], {"walk": 0, "takeoff": 1, "flight": 2,
-                                     "descend": 3}[p[1]], p[2])
+                                     "descend": 3, "settle": 4}[p[1]], p[2])
                              for p in phase_log]),
              cmd_ids=np.array(cids), walk_ids=np.array(wids))
     print(f"記録完了: {len(frames)}フレーム 最終mode={mode} "
