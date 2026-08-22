@@ -22,7 +22,7 @@ MDN_RATE = 150
 EXT_SCALE = 0.4      # 伸筋方向の抑制 (flygym統合3で足踏みを生んだ非対称)
 Q_CLAMP = 0.6        # 立位姿勢からの変位上限 [rad]
 SLEW = 0.06          # 1窓あたりの指令変化上限 [rad]
-K_WALK = 0.2         # 歩行用の界面ゲイン (K_CAL=0.08から増強)
+K_WALK = 0.26        # 歩行用の界面ゲイン (gain-sweepで探索)
 R_TONIC, KP, KV, KL, R_MAX = 15.0, 50.0, 0.5, 50.0, 250.0
 LEGS = ["LF", "LM", "LH", "RF", "RM", "RH"]
 LEG2SUF = {"LF": ("T1", "left"), "LM": ("T2", "left"), "LH": ("T3", "left"),
@@ -66,9 +66,16 @@ def run(T=3.0, mdn_hz=MDN_RATE, alpha=1.0, video=None):
         legk = [b for b in sn_by_leg[leg] if b in idx]
         nn = len(legk)
         leg_slices[leg] = slice(at, at + nn)
-        for kd in ("claw", "club", "hook", "other"):
+        for kd in ("club", "hook", "other"):
             kind_masks[(leg, kd)] = np.array(
                 [i for i, b in enumerate(legk) if KIND[b] == kd], dtype=int)
+        # clawは屈曲位置型/伸展位置型の亜集団対 (実物に存在するが
+        # メタデータに亜型ラベルが無いため bodyId偶奇で決定的に二分 = モデル化)
+        cl = [i for i, b in enumerate(legk) if KIND[b] == "claw"]
+        kind_masks[(leg, "claw_flex")] = np.array(
+            [i for q, i in enumerate(cl) if legk[i] % 2 == 0], dtype=int)
+        kind_masks[(leg, "claw_ext")] = np.array(
+            [i for q, i in enumerate(cl) if legk[i] % 2 == 1], dtype=int)
         at += nn
     sens_comp, motor_comp = compensation_factors(sn_by_leg)
     pools = WD.flybody_pools(idx, W)
@@ -126,13 +133,14 @@ def run(T=3.0, mdn_hz=MDN_RATE, alpha=1.0, video=None):
             dqs = np.array([d.qvel[m.jnt_dofadr[m.actuator_trnid[
                 act_ids[n]][0]]] for n in an
                 if n.endswith(f"{LEG2SUF[leg][0]}_{LEG2SUF[leg][1]}")])
-            dev = np.abs(qs - q_neutral[leg]).sum()
+            dev_s = float((qs - q_neutral[leg]).sum())   # +=屈曲側へ変位
             vel = np.abs(dqs).sum()
             flexing = float(np.mean(dqs))       # +なら屈曲方向
             sl = leg_slices[leg]
             base = np.full(sl.stop - sl.start, R_TONIC)
             mk = kind_masks
-            base[mk[(leg, "claw")]] += alpha * KP * dev
+            base[mk[(leg, "claw_flex")]] += alpha * KP * max(dev_s, 0.0)
+            base[mk[(leg, "claw_ext")]] += alpha * KP * max(-dev_s, 0.0)
             base[mk[(leg, "club")]] += alpha * 8.0 * KV * vel
             base[mk[(leg, "hook")]] += alpha * 60.0 * max(flexing, 0.0)
             base[mk[(leg, "other")]] += alpha * KL * loads[leg] / f_ref
@@ -153,7 +161,7 @@ def run(T=3.0, mdn_hz=MDN_RATE, alpha=1.0, video=None):
             leg = [k for k, v in LEG2SUF.items() if v == (seg, sd)][0]
             scale = EXT_SCALE if dr < 0 else 1.0
             qcmd[act] = qcmd.get(act, stance[act]) \
-                + dr * scale * K_WALK * WD.GAIN_JOINT[act.split("_")[0]] \
+                + dr * scale * globals()['K_WALK'] * WD.GAIN_JOINT[act.split("_")[0]] \
                 * motor_comp[leg] * float(f.sum())
         for n, i in act_ids.items():
             lo, hi = m.actuator_ctrlrange[i]
@@ -175,12 +183,20 @@ def run(T=3.0, mdn_hz=MDN_RATE, alpha=1.0, video=None):
     q = np.array(qlog)
     C = np.array(contact_log)
     swing = (C < 1e-8).mean(0)
+    # 歩数 = 遊脚→接地の遷移回数 (5窓=10msのデバウンス)
+    steps = []
+    for li in range(6):
+        on = (C[:, li] > 1e-8).astype(int)
+        k = np.ones(5)
+        sm = np.convolve(on, k, "same") >= 3
+        steps.append(int(np.sum(np.diff(sm.astype(int)) == 1)))
     print(f"MDN={mdn_hz}Hz+反射α={alpha} {T:.1f}s: 直立度={R[8]:+.2f} z={d.qpos[2]:+.3f} "
           f"前進={d.qpos[0]-x0:+.4f} 側方={d.qpos[1]-y0:+.4f}", flush=True)
     print(f"  中脚femur振幅std: L={q[:,0].std():.4f} R={q[:,1].std():.4f} "
           f"L-R相関={np.corrcoef(q[:,0], q[:,1])[0,1]:+.2f}", flush=True)
     print(f"  遊脚率 (接地力ゼロの時間割合) {dict(zip(LEGS, swing.round(2)))}",
           flush=True)
+    print(f"  歩数 (遊脚→接地遷移) {dict(zip(LEGS, steps))}", flush=True)
     if video and frames:
         import imageio
         imageio.mimsave(video, frames, fps=60, quality=8)
@@ -188,7 +204,13 @@ def run(T=3.0, mdn_hz=MDN_RATE, alpha=1.0, video=None):
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] and sys.argv[1] == "sweep":
+    if sys.argv[1:] and sys.argv[1] == "gain-sweep":
+        import walk_reflex as _self
+        for kw in [0.26, 0.32, 0.38]:
+            globals()["K_WALK"] = kw
+            print(f"=== K_WALK={kw} ===", flush=True)
+            run(T=2.5, mdn_hz=150, alpha=1.0)
+    elif sys.argv[1:] and sys.argv[1] == "sweep":
         for mdn, al in [(150, 0.25), (150, 0.5), (150, 1.0), (300, 0.25)]:
             run(T=2.0, mdn_hz=mdn, alpha=al)
     else:
