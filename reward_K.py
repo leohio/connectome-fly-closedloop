@@ -45,6 +45,11 @@ SENSOR_BIAS = np.array([-0.78, -0.91, -0.62])
 SENSOR_NSTD = 1.9
 SENSOR_NTAU = 0.007
 SENSOR_DELAY = int(__import__('os').environ.get('SENSOR_DELAY', '0'))   # 追加の純遅延 [羽ばたき数]。実回路はシナプス・積分でさらに遅い疑い
+# 統合37: 脳視覚経路の実測特性モデル (vis_char.py + 飽和診断):
+#   est = 0.63·tanh(1.2·e_b) を τ=30ms で低域化 + ノイズσ0.019rad
+#   (小傾きゲイン0.76、|e_b|=0.97で0.52、遅延24ms、ノイズ1.1° を再現)
+VISION_MODEL = int(__import__('os').environ.get('VISION_MODEL', '0'))
+TAU_VIS = 0.03
 SENSOR = "circuit_model"   # "true"=真の遅いω / "circuit_model"=回路復号の遅延・ノイズ模型
 
 
@@ -83,6 +88,7 @@ def rollout_sensed(theta, pert_seed, T=3.0, sensor=None, noise_seed=0):
     u_cmd = np.array(u_trim, float)
     u = np.array(u_trim, float)
     om_sen = np.zeros(3)
+    eb_sen = np.zeros(2)
     TAU_TW = 0.00425
     TAU_DEC = 0.012                    # 実測の復号遅れ (統合36d)
     ups, zs, oms, alive = [], [], [], 0
@@ -123,8 +129,14 @@ def rollout_sensed(theta, pert_seed, T=3.0, sensor=None, noise_seed=0):
                 ow = ow_now if t > 0.12 else np.zeros(3)
             else:
                 ow = o_slow
+            if VISION_MODEL:
+                tgt_eb = 0.63 * np.tanh(1.2 * e_b[:2])
+                eb_sen += hold * (tgt_eb - eb_sen) / TAU_VIS
+                eb_use = eb_sen + rgn.normal(0, 0.019, 2)
+            else:
+                eb_use = e_b[:2]
             x = np.array([(12.0 - d.qpos[2]) / 5.0, -v[2] / 30.0,
-                          e_b[0], e_b[1],
+                          eb_use[0], eb_use[1],
                           ow[0] / 20.0, ow[1] / 20.0, ow[2] / 20.0])
             u_cmd = np.clip(u_trim + np.tanh(K @ x + bb) * 0.35, -0.55, 0.55)
         u += dtp * (u_cmd - u) / TAU_TW
