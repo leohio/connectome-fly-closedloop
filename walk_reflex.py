@@ -18,7 +18,11 @@ from closed_loop import sensory_pools
 from closed_loop4 import compensation_factors
 
 DT_WIN = 0.002
-MDN_RATE = 300
+MDN_RATE = 150
+EXT_SCALE = 0.4      # 伸筋方向の抑制 (flygym統合3で足踏みを生んだ非対称)
+Q_CLAMP = 0.6        # 立位姿勢からの変位上限 [rad]
+SLEW = 0.06          # 1窓あたりの指令変化上限 [rad]
+K_WALK = 0.2         # 歩行用の界面ゲイン (K_CAL=0.08から増強)
 R_TONIC, KP, KV, KL, R_MAX = 15.0, 50.0, 0.5, 50.0, 250.0
 LEGS = ["LF", "LM", "LH", "RF", "RM", "RH"]
 LEG2SUF = {"LF": ("T1", "left"), "LM": ("T2", "left"), "LH": ("T3", "left"),
@@ -33,14 +37,38 @@ def run(T=3.0, mdn_hz=MDN_RATE, alpha=1.0, video=None):
     stance = {n: float(W["stance_q"][i]) for n, i in an.items()}
     sn_by_leg = sensory_pools()
     sn_all = [b for leg in sn_by_leg.values() for b in leg]
+    # FeCOの機能型 (claw=角度, club=振動/速度, hook=運動方向, other=荷重系)
+    import pandas as pd
+    _props = pd.read_feather("neuron-properties.feather").set_index("bodyId")
+    def sn_kind(b):
+        sc = str(_props.loc[b].subclass) if b in _props.index else ""
+        for k in ("claw", "club", "hook"):
+            if k in sc:
+                return k
+        return "other"
+    KIND = {b: sn_kind(b) for b in sn_all}
+    # 統合7のMN生理: 興奮性のサイズ勾配 (小MNほど入力抵抗大) + slow MNの
+    # 緊張性脱分極。これが無いとMNはほぼ発火せず筋力が疎なパルスになる
+    import integrate_measured as IMm
+    mp = IMm.build_measured_pools()
+    excit = {int(r.bodyid): float(IMm.E_MAX ** (1.0 - r.pct))
+             for _, r in mp.iterrows()}
+    tonic = {int(r.bodyid): float(IMm.ITN_MAX * max(
+        0.0, (IMm.TONIC_CUTOFF - r.pct) / IMm.TONIC_CUTOFF))
+        for _, r in mp.iterrows()}
     net, mon, ids, idx, pg = vnc_model.make_network(
-        vnc_model.MDN_BODYIDS, r_stim_hz=mdn_hz, sensory_bodyids=sn_all)
+        vnc_model.MDN_BODYIDS, r_stim_hz=mdn_hz, sensory_bodyids=sn_all,
+        excitability=excit, tonic_mv=tonic)
     kept = [b for b in sn_all if b in idx]
-    leg_slices = {}
+    leg_slices, kind_masks = {}, {}
     at = 0
     for leg in LEGS:
-        nn = len([b for b in sn_by_leg[leg] if b in idx])
+        legk = [b for b in sn_by_leg[leg] if b in idx]
+        nn = len(legk)
         leg_slices[leg] = slice(at, at + nn)
+        for kd in ("claw", "club", "hook", "other"):
+            kind_masks[(leg, kd)] = np.array(
+                [i for i, b in enumerate(legk) if KIND[b] == kd], dtype=int)
         at += nn
     sens_comp, motor_comp = compensation_factors(sn_by_leg)
     pools = WD.flybody_pools(idx, W)
@@ -68,6 +96,7 @@ def run(T=3.0, mdn_hz=MDN_RATE, alpha=1.0, video=None):
     rates_vec = np.zeros(at)
     f_ref = 1e-6
     fr6 = np.zeros(6)
+    prev_cmd = {}
     renderer, frames = None, []
     if video:
         renderer = mujoco.Renderer(m, 480, 640)
@@ -99,9 +128,15 @@ def run(T=3.0, mdn_hz=MDN_RATE, alpha=1.0, video=None):
                 if n.endswith(f"{LEG2SUF[leg][0]}_{LEG2SUF[leg][1]}")])
             dev = np.abs(qs - q_neutral[leg]).sum()
             vel = np.abs(dqs).sum()
-            r = (R_TONIC + alpha * (KP * dev + KV * vel
-                 + KL * loads[leg] / f_ref)) * sens_comp[leg]
-            rates_vec[leg_slices[leg]] = np.clip(r, 0, R_MAX)
+            flexing = float(np.mean(dqs))       # +なら屈曲方向
+            sl = leg_slices[leg]
+            base = np.full(sl.stop - sl.start, R_TONIC)
+            mk = kind_masks
+            base[mk[(leg, "claw")]] += alpha * KP * dev
+            base[mk[(leg, "club")]] += alpha * 8.0 * KV * vel
+            base[mk[(leg, "hook")]] += alpha * 60.0 * max(flexing, 0.0)
+            base[mk[(leg, "other")]] += alpha * KL * loads[leg] / f_ref
+            rates_vec[sl] = np.clip(base * sens_comp[leg], 0, R_MAX)
         pg.rates = rates_vec * Hz
         net.run(DT_WIN * 1000 * _ms)
         cnt = mon.count[:].copy()
@@ -116,12 +151,17 @@ def run(T=3.0, mdn_hz=MDN_RATE, alpha=1.0, video=None):
                 f[q] -= DT_WIN * f[q] / tau
             seg, sd = act.split("_")[1], act.split("_")[2]
             leg = [k for k, v in LEG2SUF.items() if v == (seg, sd)][0]
+            scale = EXT_SCALE if dr < 0 else 1.0
             qcmd[act] = qcmd.get(act, stance[act]) \
-                + dr * WD.K_CAL * WD.GAIN_JOINT[act.split("_")[0]] \
+                + dr * scale * K_WALK * WD.GAIN_JOINT[act.split("_")[0]] \
                 * motor_comp[leg] * float(f.sum())
         for n, i in act_ids.items():
             lo, hi = m.actuator_ctrlrange[i]
-            d.ctrl[i] = np.clip(qcmd[n], lo, hi)
+            v = np.clip(qcmd[n], stance[n] - Q_CLAMP, stance[n] + Q_CLAMP)
+            pv = prev_cmd.get(n, stance[n])
+            v = np.clip(v, pv - SLEW, pv + SLEW)
+            prev_cmd[n] = v
+            d.ctrl[i] = np.clip(v, lo, hi)
         for _ in range(n_phys):
             mujoco.mj_step(m, d)
         if renderer and wi % int(1 / 60 / DT_WIN + 0.5) == 0:
