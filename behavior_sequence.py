@@ -14,6 +14,7 @@
 sim: 実行して全スパイク・フレーム・状態を記録 / compose は video_sequence.py
 """
 import sys
+import os
 import json
 import numpy as np
 import mujoco
@@ -54,7 +55,8 @@ def build_command_group():
     return net, mon, pg, sl, ids
 
 
-def main(T_total=12.5, out="outputs/seq_record.npz"):
+def main(T_total=float(os.environ.get("T_TOTAL", "14.0")),
+         out="outputs/seq_record.npz"):
     import openloop_hover as OH
     import phase_reflex as PR
     import connectome_fastloop as CF
@@ -136,15 +138,22 @@ def main(T_total=12.5, out="outputs/seq_record.npz"):
                            or "").endswith(f"_{s}_{sd}_collision")]
 
     # ---- 飛行側 (統合37) ----
-    res = json.load(open("outputs/reward_K.json"))
-    sel = json.load(open("outputs/reward_K_selected.json"))["selected_seed"]
-    th = np.array([r for r in res if r["seed"] == sel][0]["theta"])
-    K_POL = th[:CB.N_U * CB.N_X].reshape(CB.N_U, CB.N_X)
-    B_POL = th[CB.N_U * CB.N_X:]
-    print("読出しWを局所則で学習中...", flush=True)
-    d0 = PL.episodes(rng_seed=0, n_train=120)
-    Wd, _ = PL.learn(d0, rng_seed=0, checkpoints=[120])
-    Sg, names, phi0 = Wd, d0["names"], d0["phi0"]
+    # 飛行制御は統合31のES帰還則 (安定飛行の実績: 直立+0.92, 高度誤差0.5)。
+    # 報酬学習K (統合36-37) は高度保持が弱く、安定飛行の基準S2を満たせない
+    # 統合39改訂2: 実回路相当の感覚 (回路模型+遅延2) と離陸プロファイルで
+    # 再学習したES帰還則。安価ループでz=0.6から離陸→巡航10→降下を実証
+    AIRBORNE = int(os.environ.get("AIRBORNE_START", "1"))
+    # 空中開始モード: 飛行区間は統合31で10秒安定飛行を実証したES帰還則
+    # (地上離陸は未解決 — README追記35参照)
+    th_es = np.load("outputs/bioflight_best.npy") if AIRBORNE \
+        else np.load("outputs/es_takeoff_d3_best.npy")
+    K_POL = th_es[12:12 + CB.N_U * CB.N_X].reshape(CB.N_U, CB.N_X)
+    B_POL = th_es[12 + CB.N_U * CB.N_X:]
+    print("読出しWを較正中 (ES-Kと整合する外部較正)...", flush=True)
+    Sg, names, phi0 = CB.calibrate()
+    # 位相推定の時定数を10→5msへ: 実回路の実効遅延を約2→約1羽ばたきに短縮
+    # (統合39改訂2の安価ループ検証: ES-Kは遅延1なら離陸可、遅延2では不可)
+    LC.TAU_P = 0.005
     fnet, fmon, fpg, pref, side, st_idx, nfly = PR.setup(**LC.SETUP_KW)
     from brian2 import SpikeMonitor as _SM
     idx_of = {j: st_idx[j] for j in names if j in st_idx}
@@ -205,6 +214,9 @@ def main(T_total=12.5, out="outputs/seq_record.npz"):
     contact_acc = 0.0
     ph_acc = 0.0
     t_settle = None
+    t_cruise0 = t_desc0 = None
+    crit_log = []
+    diag = []
     # 意図スケジュール: 0-2.2s MDN → 2.2s GF → 飛行 → 6.8sから降下 → 接地で歩行
     def intent(tn):
         r = np.zeros(len(cids))
@@ -228,9 +240,26 @@ def main(T_total=12.5, out="outputs/seq_record.npz"):
         csp = cmon.count[:].copy()
         gf_now = int(csp[csl["GF"]].sum())
         if mode == "walk" and not took_off and gf_now > gf_seen + 1:
-            mode = "takeoff"
             t_flight0 = t
-            print(f"t={t:.2f}s GF発火{gf_now} → 離陸", flush=True)
+            pose0 = d.qpos[0:7].copy()   # 把持スプールアップ中の固定姿勢
+            released = False
+            if AIRBORNE:
+                # 区間カット: 空中 (z=12, ホバー姿勢) から飛行を開始する
+                d.qpos[2] = 12.0
+                d.qpos[3:7] = np.asarray(Q0, float)
+                d.qvel[:] = 0.0
+                d.qvel[3:6] = np.random.default_rng(1).normal(0, 1.0, 3)
+                mujoco.mj_forward(m, d)
+                mode = "flight"
+                t_cruise0 = t
+                released = True
+                z_target = 12.0
+                print(f"t={t:.2f}s GF発火{gf_now} → [カット] 空中開始 z=12",
+                      flush=True)
+            else:
+                mode = "takeoff"
+                print(f"t={t:.2f}s GF発火{gf_now} → 離陸 (翅スプールアップ開始)",
+                      flush=True)
         gf_seen = max(gf_seen, gf_now)
         # ---- フェーズ実行 ----
         if mode == "settle":
@@ -362,6 +391,10 @@ def main(T_total=12.5, out="outputs/seq_record.npz"):
                     dphi[q2] = (dd + 0.5) % 1.0 - 0.5
                 if okf and (t - t_flight0) > 0.12:
                     om_est = dphi @ Sg
+                if kn_f % 10 == 0:
+                    mujoco.mju_quat2Mat(R, d.qpos[3:7])
+                    diag.append((t, float(d.qpos[2]), *om_est, *o_slow,
+                                 float(R[8]), float(okf)))
                 if kn_f % NV == 0:
                     mujoco.mju_quat2Mat(R, d.qpos[3:7])
                     zcv = np.array([R[2], R[5], R[8]])
@@ -392,24 +425,38 @@ def main(T_total=12.5, out="outputs/seq_record.npz"):
                     # 高度は周波数軸のみで制御する (x0.92=強沈下, x1.15=中立)
                     u_cmd[0] = 0.0
                 tf = t - t_flight0
-                env0 = min(tf / 0.15, 1.0)   # 脚支持中にゆっくり推力を立てる
+                env0 = min(tf / 0.03, 1.0)   # 翅は脚押し出しと同時に起動
+                Z0_, ZC_ = 0.15, 12.0
+                T_SPOOL = 0.4     # 把持したまま翅を回し復号を落ち着かせる
+                T_PUSH = 0.15     # 脚伸展: 体が0.13→0.6へ持ち上がる (押し出し相)
+                T_TUCK = 0.08     # 跗節が離れてから解放までの猶予
+                Z_REL = 0.6
                 if mode == "takeoff":
-                    z_target = min(0.2 + 1.5 * tf, 2.0)
-                    if z_target >= 2.0 and tf > 1.2:
+                    z_target = Z0_ if tf < T_SPOOL + T_PUSH + T_TUCK else \
+                        Z_REL + min((tf - T_SPOOL - T_PUSH - T_TUCK) / 3.0,
+                                    1.0) * (ZC_ - Z_REL)
+                    if tf >= T_SPOOL + T_PUSH + T_TUCK and not released:
+                        released = True
+                        d.qvel[2] = (Z_REL - 0.127) / T_PUSH   # 上昇速度を継続
+                        print(f"t={t:.2f}s 解放 (接触{d.ncon}, z={d.qpos[2]:.2f})",
+                              flush=True)
+                    if tf >= T_SPOOL + T_PUSH + T_TUCK + 3.0:
                         mode = "flight"
-                        print(f"t={t:.2f}s 低空巡航へ", flush=True)
-                elif mode == "flight" and tf > 3.5:
+                        t_cruise0 = t
+                        print(f"t={t:.2f}s 巡航 (目標z={ZC_})", flush=True)
+                elif mode == "flight" and t - t_cruise0 > 5.0:
                     mode = "descend"
+                    t_desc0 = t
                     print(f"t={t:.2f}s 降下開始", flush=True)
                 elif mode == "descend":
-                    z_target = max(z_target - 0.8 * CF.DT_N, 0.05)
+                    z_target = max(ZC_ - (t - t_desc0) / 3.5 * (ZC_ - 0.6), 0.6)
                     floor_touch = any(
                         d.contact[c].geom1 == W["floor"]
                         or d.contact[c].geom2 == W["floor"]
                         for c in range(d.ncon))
                     # 跗節接触の着陸反射: 降下中に脚が触れたら即座に翅停止
                     # (実バエのtarsal contact→wing stop反射)
-                    if floor_touch and z_target < 0.6:
+                    if floor_touch:
                         mujoco.mju_quat2Mat(R, d.qpos[3:7])
                         up_now = R[8]
                         if up_now > 0.75 and abs(d.qvel[2]) < 10.0:
@@ -419,21 +466,23 @@ def main(T_total=12.5, out="outputs/seq_record.npz"):
                                   f"vz{d.qvel[2]:+.1f}) → 静定", flush=True)
                             break
                         # 姿勢不良の接触では着陸せず飛行を続けて仕切り直す
-                ferr = np.tanh((z_target - d.qpos[2]) / 2.0)
-                f_mul = np.clip(1.0 + 0.12 * ferr - 0.05 * d.qvel[2] / 10.0,
-                                0.90, 1.15)
+                f_mul = 1.0
                 for _ in range(int(CF.DT_N / dtp)):
                     tt = t
                     u += dtp * (u_cmd - u) / CB.TAU_TW
                     amp = np.clip(1.0 + u[0], 0.5, 1.6)
+                    if mode == "descend":
+                        amp *= 0.96           # 着陸コマンド (安価ループ: 接地vz-3.5)
                     ph_acc += 2 * np.pi * P0["freq"] * f_mul * dtp
                     ph2 = ph_acc
                     s2 = np.sin(ph2)
                     rot = np.tanh(kk * np.cos(ph2 + P0["phase"])) / np.tanh(kk)
                     e2 = env0 * amp
                     d.ctrl[:] = 0
+                    # 脚は立位姿勢のまま (畳むと脚同士が貫通し、固定解放時に
+                    # 蓄積拘束力が250rad/sのスピンとして爆発する — 診断4で実測)
                     for n2, i2 in act_ids.items():
-                        d.ctrl[i2] = stance[n2]     # 飛行中は脚を立位姿勢で保持
+                        d.ctrl[i2] = stance[n2]
                     d.ctrl[aid["wing_yaw_left"]] = e2 * (P0["yaw_amp"] * s2
                                                          + u[1] + u[2])
                     d.ctrl[aid["wing_yaw_right"]] = e2 * (P0["yaw_amp"] * s2
@@ -447,6 +496,14 @@ def main(T_total=12.5, out="outputs/seq_record.npz"):
                     d.ctrl[aid["wing_roll_right"]] = e2 * P0["roll_amp"] \
                         * np.sin(2 * ph2)
                     mujoco.mj_step(m, d)
+                    if mode == "takeoff" and not released:
+                        # 安価ループ (ES再学習の訓練条件) と同一の固定:
+                        # 姿勢はホバー姿勢Q0、高さは押し出し相で0.13→0.6
+                        fr_ = min(max(tf - T_SPOOL, 0.0) / T_PUSH, 1.0)
+                        d.qpos[0:2] = pose0[0:2]
+                        d.qpos[2] = 0.127 + fr_ * (Z_REL - 0.127)
+                        d.qpos[3:7] = np.asarray(Q0, float)
+                        d.qvel[0:6] = 0.0
                 t += CF.DT_N
                 kn_f += 1
         if not np.isfinite(d.qpos[2]) or d.qpos[2] > 40:
@@ -454,11 +511,18 @@ def main(T_total=12.5, out="outputs/seq_record.npz"):
             break
         if d.time >= next_f:
             next_f += 1.0 / FPS
-            cam.lookat[:] = d.qpos[:3]
-            cam.distance = 2.2 if mode == "walk" else 6.0
+            cam.lookat[:] = [d.qpos[0], d.qpos[1],
+                             d.qpos[2] if mode in ("walk", "settle")
+                             else max(d.qpos[2], 2.5)]
+            cam.distance = 2.2 if mode in ("walk", "settle") else 8.0
             renderer.update_scene(d, cam)
             frames.append(renderer.render())
             phase_log.append((t, mode, float(d.qpos[2])))
+            mujoco.mju_quat2Mat(R, d.qpos[3:7])
+            ft_ = any(d.contact[c].geom1 == W["floor"]
+                      or d.contact[c].geom2 == W["floor"]
+                      for c in range(d.ncon))
+            crit_log.append((t, float(d.qpos[2]), float(R[8]), bool(ft_), mode))
     import imageio
     imageio.mimsave("outputs/seq_body.mp4", frames, fps=FPS, quality=8)
     def cvt(mon_, key):
@@ -481,6 +545,11 @@ def main(T_total=12.5, out="outputs/seq_record.npz"):
              cmd_ids=np.array(cids), walk_ids=np.array(wids))
     print(f"記録完了: {len(frames)}フレーム 最終mode={mode} "
           f"z={d.qpos[2]:.2f}", flush=True)
+    np.save("outputs/seq_diag.npy", np.array(diag))
+    import flight_criteria as FC
+    ok, out = FC.evaluate(crit_log, 12.0)
+    print("安定飛行の基準:", flush=True)
+    FC.report(ok, out)
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 W_, H_ = 1280, 720
 FPS = 60
 GLOW = 0.05
-PHASE_NAMES = {0: "歩行 (MDN)", 1: "離陸 (GF)", 2: "飛行", 3: "降下", 4: "着陸・静定"}
+PHASE_NAMES = {0: "歩行 (MDN)", 1: "離陸 (GF)", 2: "飛行 [空中開始]", 3: "降下", 4: "着陸・静定"}
 PHASE_COL = {0: (94, 234, 141), 1: (250, 204, 21), 2: (56, 227, 238),
              3: (255, 159, 64), 4: (200, 160, 255)}
 
@@ -132,8 +132,12 @@ def compose():
         img = Image.new("RGB", (W_, H_), BG)
         dr = ImageDraw.Draw(img, "RGBA")
         img.paste(Image.fromarray(fr), (0, 60))
-        dr.text((14, 8), "統合個体: 歩行 → 離陸 → 飛行 → 降下 → 歩行"
-                " (遷移=下行ニューロン発火)", font=f_jp, fill=(235, 238, 250))
+        dr.text((14, 8), "統合個体: 歩行 → [カット] 安定飛行 → 降下 → 軟着陸 → 歩行"
+                " (遷移=DN発火)", font=f_jp, fill=(235, 238, 250))
+        if 2.1 < t < 3.6:
+            dr.rectangle([0, 60, 640, 540], fill=(0, 0, 0, 90))
+            dr.text((120, 280), "[カット] 地上離陸は未解決 → 空中 (z=12) から飛行開始",
+                    font=f_jp, fill=(255, 230, 120))
         pc = PHASE_COL[ph_id]
         dr.rectangle([14, 34, 200, 54], fill=(pc[0], pc[1], pc[2], 60),
                      outline=pc)

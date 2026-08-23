@@ -58,7 +58,7 @@ SENSOR = "circuit_model"   # "true"=真の遅いω / "circuit_model"=回路復�
 
 def rollout_sensed(theta, pert_seed, T=3.0, sensor=None, noise_seed=0,
                    z_fn=None, alt_reflex=None, hold_until=0.0, z_floor=None,
-                   start_z=12.0):
+                   start_z=12.0, clamp_x0=True, land_amp=None):
     """BF.rollout と同一だが、ω感覚に回路復号の特性模型を挟める。
 
     統合36bの転移失敗の原因究明用: 学習Kは真の遅いωでは3.00s飛ぶが、
@@ -144,7 +144,7 @@ def rollout_sensed(theta, pert_seed, T=3.0, sensor=None, noise_seed=0,
             # 訓練分布外の大きな高度誤差はKに揚力を失う波形を出させる。
             # 政策への入力は訓練域にクランプし、大誤差の上昇は生得反射が担う
             x0 = (z_t - d.qpos[2]) / 5.0
-            if z_fn is not None:
+            if z_fn is not None and clamp_x0:
                 x0 = np.clip(x0, -0.5, 0.5)
             x = np.array([x0, -v[2] / 30.0,
                           eb_use[0], eb_use[1],
@@ -160,6 +160,8 @@ def rollout_sensed(theta, pert_seed, T=3.0, sensor=None, noise_seed=0,
                                    - kv_ * v[2] / 10.0, -0.35, 0.05)
         u += dtp * (u_cmd - u) / TAU_TW
         amp = np.clip(1.0 + u[0], 0.5, 1.6)
+        if land_amp is not None and land_amp[0] <= t:
+            amp *= land_amp[1]          # 着陸コマンド (統合11: 振幅x0.88で降下)
         if FREQ_REFLEX > 0 and z_fn is not None:
             ferr = np.tanh((z_fn(t) - d.qpos[2]) / 2.0)
             f_mul = np.clip(1.0 + FREQ_REFLEX * ferr

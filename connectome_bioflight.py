@@ -29,6 +29,8 @@ B_POL = TH[12 + N_U * N_X:]
 PR.WBF = float(P0["freq"])      # ハルテア-翅の機械的周波数結合
 PR.C_PHASE = 0.0015             # 生理的な位相シフト感度
 TAU_TW = 0.00425                # 筋単収縮 (Azevedo 2020)
+OMLOG = None                    # list を入れると (t, om_est, o_slow) を記録
+LEG_STANCE = None               # (act_ids, stance_q) を入れると脚を立位姿勢で保持
 PERT_SIG = 1.5                  # 初期外乱の大きさ [rad/s]
 
 
@@ -117,6 +119,8 @@ def fly(src="true", dec=None, T=3.0, pert_seed=None, shuffle=None, seed=0):
                 dphi[q] = (dd + 0.5) % 1.0 - 0.5
             if ok and tn > 0.12:
                 om_est = dphi @ Sg
+            if OMLOG is not None:
+                OMLOG.append((tn, om_est.copy(), o_slow.copy()))
         if tn >= t_next:                # 1羽ばたき1回だけ指令更新
             t_next += per
             mujoco.mju_quat2Mat(R, d.qpos[3:7])
@@ -146,6 +150,8 @@ def fly(src="true", dec=None, T=3.0, pert_seed=None, shuffle=None, seed=0):
             rot = np.tanh(kk * np.cos(ph2 + P0["phase"])) / np.tanh(kk)
             e = env0 * amp
             d.ctrl[:] = 0
+            if LEG_STANCE is not None:
+                d.ctrl[LEG_STANCE[0]] = LEG_STANCE[1]
             d.ctrl[aid["wing_yaw_left"]] = e * (P0["yaw_amp"] * s + u[1] + u[2])
             d.ctrl[aid["wing_yaw_right"]] = e * (P0["yaw_amp"] * s + u[1] - u[2])
             d.ctrl[aid["wing_pitch_left"]] = e * (-P0["pitch_amp"] * rot
@@ -176,3 +182,124 @@ if __name__ == "__main__":
                     shuffle="all" if what == "shuffle" else None, seed=sd)
     print(f"{what}(seed{sd}): 生存{s:.2f}s 直立{up:+.2f} 高度誤差{ze:.1f}",
           flush=True)
+
+
+def fly_engine(d, dec, T=10.0, z_fn=None, land_amp=None, land_cb=None,
+               frame_cb=None, diag=None, t0=0.0, floor_gid=None,
+               leg_stance=None, env_ramp=0.03, K_POL_=None, B_POL_=None):
+    """統合39改訂3: fly() と同一の制御・復号ループを、外部から与えた MjData で
+    継続実行する飛行エンジン (シーケンス用)。fly() は実証済みのため、
+    制御数式はそこから一切変えない。追加はフックのみ:
+      z_fn(t): 目標高度 / land_amp(t): 振幅係数 (着陸コマンド) /
+      land_cb(d, t): True を返すと着陸成立で終了 / frame_cb(d, t): 描画 /
+      diag: list に (t, z, om_est, o_slow, up) を記録
+    戻り値: (飛行時間, 終了理由)
+    """
+    global K_POL, B_POL
+    if K_POL_ is not None:
+        K_POL, B_POL = K_POL_, B_POL_
+    E = OH.env()
+    m, Q0, ZT_W, aid = E["m"], E["Q0"], E["ZT_W"], E["aid"]
+    Sg, names, phi0 = dec
+    net, mon, pg, pref, side, st_idx, n = PR.setup(**LC.SETUP_KW)
+    idx_of = {j: st_idx[j] for j in names if j in st_idx}
+    zc = {j: 0j for j in names}
+    prev = 0
+    shift_prev = np.zeros(len(pref))
+    dtp = m.opt.timestep
+    kk = max(P0["sharp"], 1e-3)
+    R = np.zeros(9)
+    per = 1.0 / P0["freq"]
+    NBOX = max(int(per / CF.DT_N), 1)
+    ombuf = np.zeros((NBOX, 3))
+    ombi = 0
+    omsum = np.zeros(3)
+    u_cmd = np.array(U_TRIM, float)
+    u = np.array(U_TRIM, float)
+    om_est = np.zeros(3)
+    t_next = 0.0
+    n_sub = max(int(round(CF.DT_N / dtp)), 1)
+    t_start = d.time
+    spikes_t, spikes_i = [], []
+    reason = "timeout"
+    for kn in range(int(T / CF.DT_N)):
+        tn = kn * CF.DT_N
+        t_abs = t0 + tn
+        omsum += d.qvel[3:6] - ombuf[ombi]
+        ombuf[ombi] = d.qvel[3:6].copy()
+        ombi = (ombi + 1) % NBOX
+        o_slow = omsum / NBOX
+        o = np.clip(o_slow, -12, 12)
+        shift = PR.C_PHASE * (side * o[0] + o[1]
+                              + side * np.cos(2 * np.pi * pref) * o[2])
+        pg.v = pg.v - (shift - shift_prev)
+        shift_prev = shift
+        net.run(CF.DT_N * 1000 * _ms)
+        ph_w = (tn * P0["freq"]) % 1.0
+        nsp = mon.num_spikes
+        if nsp > prev:
+            ev = np.exp(2j * np.pi * ph_w)
+            for iN in np.array(mon.i[prev:nsp]):
+                for j, im in idx_of.items():
+                    if int(iN) == im:
+                        zc[j] += ev
+            prev = nsp
+        dphi = np.zeros(len(names))
+        ok = True
+        for q, j in enumerate(names):
+            zc[j] -= CF.DT_N * zc[j] / LC.TAU_P
+            if abs(zc[j]) < 1e-3:
+                ok = False
+                break
+            dd = np.angle(zc[j]) / (2 * np.pi) - phi0[q]
+            dphi[q] = (dd + 0.5) % 1.0 - 0.5
+        if ok and tn > 0.12:
+            om_est = dphi @ Sg
+        if diag is not None and kn % 10 == 0:
+            mujoco.mju_quat2Mat(R, d.qpos[3:7])
+            diag.append((t_abs, float(d.qpos[2]), *om_est, *o_slow,
+                         float(R[8]), float(ok)))
+        z_t = z_fn(tn) if z_fn is not None else 12.0
+        if tn >= t_next:
+            t_next += per
+            mujoco.mju_quat2Mat(R, d.qpos[3:7])
+            zcv = np.array([R[2], R[5], R[8]])
+            e_b = R.reshape(3, 3).T @ np.cross(zcv, ZT_W)
+            v = d.qvel[:3]
+            x = np.array([(z_t - d.qpos[2]) / 5.0, -v[2] / 30.0,
+                          e_b[0], e_b[1],
+                          om_est[0] / 20.0, om_est[1] / 20.0, om_est[2] / 20.0])
+            u_cmd = np.clip(U_TRIM + np.tanh(K_POL @ x + B_POL) * 0.35,
+                            -0.55, 0.55)
+        la = land_amp(tn) if land_amp is not None else 1.0
+        for _ in range(n_sub):
+            t = d.time - t_start
+            u += dtp * (u_cmd - u) / TAU_TW
+            amp = np.clip(1.0 + u[0], 0.5, 1.6) * la
+            env0 = min(t / env_ramp, 1.0)
+            ph2 = 2 * np.pi * P0["freq"] * t
+            s = np.sin(ph2)
+            rot = np.tanh(kk * np.cos(ph2 + P0["phase"])) / np.tanh(kk)
+            e = env0 * amp
+            d.ctrl[:] = 0
+            if leg_stance is not None:
+                d.ctrl[leg_stance[0]] = leg_stance[1]
+            d.ctrl[aid["wing_yaw_left"]] = e * (P0["yaw_amp"] * s + u[1] + u[2])
+            d.ctrl[aid["wing_yaw_right"]] = e * (P0["yaw_amp"] * s + u[1] - u[2])
+            d.ctrl[aid["wing_pitch_left"]] = e * (-P0["pitch_amp"] * rot
+                                                  + P0["pitch_bias"] + u[3] + u[4])
+            d.ctrl[aid["wing_pitch_right"]] = e * (-P0["pitch_amp"] * rot
+                                                   + P0["pitch_bias"] + u[3] - u[4])
+            d.ctrl[aid["wing_roll_left"]] = e * P0["roll_amp"] * np.sin(2 * ph2)
+            d.ctrl[aid["wing_roll_right"]] = e * P0["roll_amp"] * np.sin(2 * ph2)
+            mujoco.mj_step(m, d)
+        if frame_cb is not None:
+            frame_cb(d, t_abs + CF.DT_N)
+        if not np.isfinite(d.qpos[2]) or d.qpos[2] > 40:
+            reason = "diverged"
+            break
+        if land_cb is not None and land_cb(d, tn):
+            reason = "landed"
+            break
+    sp_t = np.array(mon.t / _ms) / 1000.0 + t0
+    return (kn + 1) * CF.DT_N, reason, (sp_t, np.array(mon.i))
