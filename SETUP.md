@@ -8,7 +8,7 @@
 
 ```
 workspace/
-├── connectome-fly-biocompensation/   ← このリポジトリ
+├── connectome-fly-closedloop/        ← このリポジトリ
 │   ├── neuron-properties.feather     ← 別途配置が必要 (16MB, 下記)
 │   └── *.py
 ├── vnc-connectome/downloads/         ← MANC 腹髄コネクトーム

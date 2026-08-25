@@ -1,4 +1,4 @@
-# connectome-fly-biocompensation
+# connectome-fly-closedloop
 
 **実測コネクトーム駆動の身体シミュレーション** — ショウジョウバエの実測配線図で
 物理身体を飛ばし・歩かせ、「配線の個性が行動のどこまで届くのか」を定量した研究。
