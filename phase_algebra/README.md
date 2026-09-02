@@ -21,6 +21,7 @@
 | `circle_map.py` | P3。円周写像 (位相同期ループ) 代理 — 実配線の S と復号誤差を構造だけから再現 |
 | `floquet_cycle.py` | P2 補遺。整数ビート断面の Floquet 有限差分 (失敗として記録) |
 | `walk_phase.py` | P4。脚位相の複素コヒーレンス行列と Kuramoto 結合フィット (結果: 歩容が振動子系として不成立、`outputs/walk_phase_r{2,3}.json`) |
+| `vnc_rhythm.py` | P4b。身体なし腹髄単独の脚 MN 集団リズム解析 (結果: ポアソン雑音と同等、`outputs/vnc_rhythm_*.json`, `vnc_rhythm_null.json`) |
 | `MODEL.md` | P5。全体を 1 ページの最小複素線形モデルにまとめた草稿 |
 | `closed_loop.py` | P2。身体・筋・感覚 (遅れ+遅延)・制御則を合成した閉ループ行列 T。速い姿勢モードと遅いドリフトモードを分けて遅延 d ごとに |λ| を出す |
 | `hover_growth.py` | P2 検証。同じ座標で非線形閉ループを回し、遅延ごとの生存と成長率を測る |
