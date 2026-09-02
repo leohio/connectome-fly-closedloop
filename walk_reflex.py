@@ -112,6 +112,7 @@ def run(T=3.0, mdn_hz=MDN_RATE, alpha=1.0, video=None):
         cam.distance, cam.elevation, cam.azimuth = 1.2, -12, 100
     n_phys = int(DT_WIN / m.opt.timestep)
     contact_log, qlog = [], []
+    p4_log = []
     for wi in range(int(T / DT_WIN)):
         # 接地荷重 (脚ごと)
         fbuf = np.zeros(6)
@@ -178,6 +179,9 @@ def run(T=3.0, mdn_hz=MDN_RATE, alpha=1.0, video=None):
             frames.append(renderer.render())
         contact_log.append([loads[l] for l in LEGS])
         qlog.append([d.qpos[legjq["LM"][1]], d.qpos[legjq["RM"][1]]])
+        # P4_LOG: 脚ごとの関節角 (femur, tibia) を全脚で記録 (位相振動子フィット用)
+        p4_log.append([d.qpos[legjq[l][1]] for l in LEGS] + [d.qpos[legjq[l][2]] for l in LEGS]
+                      + [float(d.qpos[0]), float(d.qpos[1]), float(d.qpos[2])])
     R = np.zeros(9)
     mujoco.mju_quat2Mat(R, d.qpos[3:7])
     q = np.array(qlog)
@@ -201,6 +205,11 @@ def run(T=3.0, mdn_hz=MDN_RATE, alpha=1.0, video=None):
         import imageio
         imageio.mimsave(video, frames, fps=60, quality=8)
         print("動画:", video, flush=True)
+    import os as _os
+    _os.makedirs("phase_algebra/outputs", exist_ok=True)
+    np.savez(f"phase_algebra/outputs/walk_timeseries{_os.environ.get('P4_TAG', '')}.npz", dt=DT_WIN, legs=np.array(LEGS),
+             contact=np.array(contact_log), q=np.array(p4_log), K_WALK=K_WALK, mdn=mdn_hz)
+    print(f"P4用時系列を保存: phase_algebra/outputs/walk_timeseries{_os.environ.get('P4_TAG', '')}.npz 最終直立度={R[8]:+.2f}", flush=True)
 
 
 if __name__ == "__main__":
