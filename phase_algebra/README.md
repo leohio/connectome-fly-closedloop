@@ -6,9 +6,15 @@
 
 ```bash
 ../fly-body-sim/venv/bin/python phase_algebra/ident_plant.py      # P1: 機体 F, G の同定
+../fly-body-sim/venv/bin/python phase_algebra/closed_loop.py      # P2: 閉ループ行列と遅延の壁
+../fly-body-sim/venv/bin/python phase_algebra/hover_growth.py     # P2 検証
 ```
 
 | ファイル | 内容 |
 |---|---|
 | `ident_plant.py` | P1。ホバー動作点で微小摂動を与え、1羽ばたきのストロボ写像 F (9×9), G (9×5) を最小二乗で同定。固有値と線形予測の検証つき |
 | `outputs/plant_FG.npz` | 同定結果 (F, G, c, 参照状態) |
+| `closed_loop.py` | P2。身体・筋・感覚 (遅れ+遅延)・制御則を合成した閉ループ行列 T。速い姿勢モードと遅いドリフトモードを分けて遅延 d ごとに |λ| を出す |
+| `hover_growth.py` | P2 検証。同じ座標で非線形閉ループを回し、遅延ごとの生存と成長率を測る |
+| `floquet_check.py` | P2 検証。摂動あり/なしの2軌道差から小摂動の成長率を測る (リミットサイクルの発見に至った) |
+| `outputs/closed_loop.json`, `hover_growth.json`, `floquet_check.json` | 上記の結果 |
