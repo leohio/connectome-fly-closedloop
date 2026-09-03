@@ -19,6 +19,8 @@
 | `wiring_operator.py` | P3。回路から配線配列・符号化・MN指標を抽出 (キャッシュ)、位相和代理 |
 | `threshold_surrogate.py`, `wta_invariant.py`, `encoding_coherence.py` | P3。閾値交差代理 / 勝者総取り不変量 / 符号化コヒーレンス不変量 |
 | `circle_map.py` | P3。円周写像 (位相同期ループ) 代理 — 実配線の S と復号誤差を構造だけから再現 |
+| `twitch_wall.py` | P2c。単収縮 τ_tw の掃引: 線形 T の速いモードと非線形実走行の生存 (`outputs/twitch_wall.json`) |
+| `twitch_phase.py` | P2c 補遺。指令更新位相 × 瞬時/単収縮 (位相仮説の否定, `outputs/twitch_phase.json`) |
 | `floquet_cycle.py` | P2 補遺。整数ビート断面の Floquet 有限差分 (失敗として記録) |
 | `walk_phase.py` | P4。脚位相の複素コヒーレンス行列と Kuramoto 結合フィット (結果: 歩容が振動子系として不成立、`outputs/walk_phase_r{2,3}.json`) |
 | `vnc_rhythm.py` | P4b。身体なし腹髄単独の脚 MN 集団リズム解析 (結果: ポアソン雑音と同等、`outputs/vnc_rhythm_*.json`, `vnc_rhythm_null.json`) |
