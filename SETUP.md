@@ -6,12 +6,16 @@
 
 ## 期待するディレクトリ構成
 
+実際の作業環境ではこの `workspace/` は `~/repos/fly-workspace/` にあたる
+(2026-09-04 に `~/repos` 直下から整理し、他の無関係なプロジェクトと混ざらないよう
+1つのフォルダにまとめた。4本のシンボリックリンクは `physical-based-llm` の対応フォルダを指す)。
+
 ```
-workspace/
+workspace/                            (実体: ~/repos/fly-workspace/)
 ├── connectome-fly-closedloop/        ← このリポジトリ
-│   ├── neuron-properties.feather     ← 別途配置が必要 (16MB, 下記)
+│   ├── neuron-properties.feather     ← 実体ファイル (16MB, リポジトリには含めず.gitignore、下記)
 │   └── *.py
-├── vnc-connectome/downloads/         ← MANC 腹髄コネクトーム
+├── vnc-connectome/downloads/         ← MANC 腹髄コネクトーム (シンボリックリンク)
 │   ├── traced-connections.csv        (72MB)
 │   ├── traced-neurons.csv            (616KB)
 │   ├── elife-96084-supp3-v1.csv      (翅MN ↔ 筋の対応表)
@@ -46,7 +50,9 @@ workspace/
 - **FlyWire**(全脳コネクトーム): Drosophila brain model の公開配布物
 - **flybody**: Janelia の MuJoCo ハエ身体モデル
 - `neuron-properties.feather` は MANC のニューロン属性テーブルを feather 化したもの
-  (サイズの都合でリポジトリには含めていない)
+  (サイズの都合でリポジトリには含めていない。`connectome-fly-closedloop/` 直下に実体ファイルとして
+  配置する。以前はシンボリックリンクで `fly-integrated/` を指していたが、2026-09-04 に
+  `fly-integrated` を削除したため実体コピーに差し替えた)
 
 ## Python環境
 
