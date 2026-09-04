@@ -1,0 +1,35 @@
+WARNING    'w' is an internal variable of group 'ssyn', but also exists in the run namespace with the value -8.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'w' is an internal variable of group 'ssyn', but also exists in the run namespace with the value -4.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'w' is an internal variable of group 'ssyn', but also exists in the run namespace with the value 4.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'w' is an internal variable of group 'ssyn', but also exists in the run namespace with the value 8.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+--- roll 軸: Δφ (筋活動位相のずれ, cycle) ---
+  b1_L     ω=-8:+0.249 -4:+0.321 +4:+0.120 +8:+0.238 | 奇-0.005 偶+0.244
+  b1_R     ω=-8:+0.240 -4:+0.120 +4:-0.120 +8:+0.256 | 奇+0.008 偶+0.248
+  b2_R     ω=-8:+0.240 -4:+0.119 +4:-0.121 +8:+0.260 | 奇+0.010 偶+0.250
+  i1_L     ω=-8:-0.239 -4:-0.120 +4:+0.120 +8:+0.240 | 奇+0.239 偶+0.000
+  i1_R     ω=-8:+0.244 -4:+0.124 +4:-0.117 +8:+0.284 | 奇+0.020 偶+0.264
+  iii3_R   ω=-8:+0.240 -4:+0.120 +4:-0.120 +8:-0.240 | 奇-0.240 偶+0.000
+  hg1_R    ω=-8:+0.241 -4:+0.121 +4:+0.411 +8:+0.290 | 奇+0.024 偶+0.266
+  hg3_R    ω=-8:+0.240 -4:+0.120 +4:-0.121 +8:-0.241 | 奇-0.241 偶-0.000
+  hg4_R    ω=-8:+0.240 -4:+0.118 +4:-0.119 +8:+0.257 | 奇+0.008 偶+0.249
+--- pitch 軸: Δφ (筋活動位相のずれ, cycle) ---
+  b1_L     ω=-8:+0.240 -4:+0.360 +4:+0.119 +8:+0.239 | 奇-0.000 偶+0.240
+  b1_R     ω=-8:+0.257 -4:-0.119 +4:+0.122 +8:+0.242 | 奇-0.008 偶+0.250
+  b2_R     ω=-8:+0.262 -4:-0.120 +4:+0.121 +8:+0.242 | 奇-0.010 偶+0.252
+  i1_L     ω=-8:-0.240 -4:-0.119 +4:+0.120 +8:+0.239 | 奇+0.240 偶-0.000
+  i1_R     ω=-8:+0.283 -4:-0.115 +4:+0.126 +8:+0.249 | 奇-0.017 偶+0.266
+  iii3_R   ω=-8:-0.240 -4:-0.120 +4:+0.120 +8:+0.240 | 奇+0.240 偶+0.000
+  hg1_R    ω=-8:+0.290 -4:+0.410 +4:+0.122 +8:+0.244 | 奇-0.023 偶+0.267
+  hg3_R    ω=-8:-0.240 -4:-0.120 +4:+0.120 +8:+0.239 | 奇+0.239 偶-0.001
+  hg4_R    ω=-8:+0.258 -4:-0.119 +4:+0.123 +8:+0.242 | 奇-0.008 偶+0.250
+--- yaw 軸: Δφ (筋活動位相のずれ, cycle) ---
+  b1_L     ω=-8:+0.247 -4:+0.138 +4:+0.119 +8:+0.239 | 奇-0.004 偶+0.243
+  b1_R     ω=-8:+0.238 -4:+0.118 +4:-0.117 +8:+0.255 | 奇+0.009 偶+0.246
+  b2_R     ω=-8:+0.237 -4:+0.118 +4:-0.117 +8:-0.264 | 奇-0.251 偶-0.014
+  i1_L     ω=-8:+0.239 -4:+0.120 +4:-0.119 +8:-0.238 | 奇-0.239 偶+0.000
+  i1_R     ω=-8:+0.230 -4:+0.113 +4:-0.107 +8:-0.245 | 奇-0.237 偶-0.007
+  iii3_R   ω=-8:+0.240 -4:+0.120 +4:-0.120 +8:-0.240 | 奇-0.240 偶-0.000
+  hg1_R    ω=-8:+0.229 -4:+0.113 +4:-0.108 +8:-0.236 | 奇-0.233 偶-0.003
+  hg3_R    ω=-8:-0.260 -4:-0.118 +4:+0.119 +8:+0.238 | 奇+0.249 偶-0.011
+  hg4_R    ω=-8:+0.231 -4:+0.116 +4:-0.118 +8:-0.268 | 奇-0.250 偶-0.018
+DONE

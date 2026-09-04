@@ -1,0 +1,159 @@
+開始(開ループ最良+帰還ゼロ): 生存1.66s 直立+0.50 高度誤差6.2 fit=1.722
+gen0: best=1.722 genbest=1.091 srvmax=0.96s mean=0.445
+gen1: best=1.722 genbest=1.452 srvmax=1.36s mean=0.443
+gen2: best=1.722 genbest=1.473 srvmax=1.37s mean=0.429
+gen3: best=1.722 genbest=1.033 srvmax=0.94s mean=0.378
+gen4: best=2.362 genbest=2.362 srvmax=2.37s mean=0.516
+gen5: best=2.837 genbest=2.837 srvmax=2.63s mean=0.690
+gen6: best=2.837 genbest=2.011 srvmax=1.82s mean=0.600
+gen7: best=2.837 genbest=2.528 srvmax=2.42s mean=0.666
+gen8: best=2.837 genbest=2.829 srvmax=2.73s mean=0.758
+gen9: best=2.837 genbest=1.128 srvmax=1.02s mean=0.484
+gen10: best=2.837 genbest=2.370 srvmax=2.20s mean=0.559
+gen11: best=3.276 genbest=3.276 srvmax=3.00s mean=0.794
+gen12: best=3.276 genbest=1.563 srvmax=1.50s mean=0.539
+gen13: best=3.276 genbest=1.228 srvmax=1.18s mean=0.447
+gen14: best=3.276 genbest=1.160 srvmax=1.10s mean=0.450
+gen15: best=3.276 genbest=2.525 srvmax=2.40s mean=0.727
+gen16: best=3.276 genbest=1.888 srvmax=1.71s mean=0.678
+gen17: best=3.276 genbest=3.191 srvmax=3.00s mean=0.795
+gen18: best=3.276 genbest=1.519 srvmax=1.32s mean=0.796
+gen19: best=3.276 genbest=3.196 srvmax=3.00s mean=0.829
+gen20: best=3.276 genbest=1.870 srvmax=1.76s mean=0.773
+gen21: best=3.276 genbest=3.198 srvmax=3.00s mean=1.233
+gen22: best=3.276 genbest=1.394 srvmax=1.29s mean=0.737
+gen23: best=3.276 genbest=3.014 srvmax=2.90s mean=1.067
+gen24: best=3.276 genbest=1.570 srvmax=1.50s mean=0.634
+gen25: best=3.389 genbest=3.389 srvmax=3.00s mean=1.028
+gen26: best=3.389 genbest=2.555 srvmax=2.25s mean=0.978
+gen27: best=3.389 genbest=3.305 srvmax=3.00s mean=0.895
+gen28: best=3.389 genbest=3.272 srvmax=3.00s mean=1.192
+gen29: best=3.389 genbest=2.952 srvmax=2.73s mean=0.905
+gen30: best=3.389 genbest=2.705 srvmax=2.46s mean=1.100
+gen31: best=3.389 genbest=2.701 srvmax=2.43s mean=0.904
+gen32: best=3.389 genbest=3.227 srvmax=3.00s mean=1.114
+gen33: best=3.389 genbest=3.214 srvmax=3.00s mean=0.980
+gen34: best=3.389 genbest=3.227 srvmax=3.00s mean=1.185
+gen35: best=3.389 genbest=2.425 srvmax=2.31s mean=1.144
+gen36: best=3.389 genbest=3.159 srvmax=2.86s mean=1.247
+gen37: best=3.410 genbest=3.410 srvmax=3.00s mean=1.247
+gen38: best=3.410 genbest=2.621 srvmax=2.49s mean=1.077
+gen39: best=3.410 genbest=3.272 srvmax=3.00s mean=1.567
+gen40: best=3.410 genbest=2.554 srvmax=2.29s mean=1.146
+gen41: best=3.422 genbest=3.422 srvmax=3.00s mean=1.219
+gen42: best=3.422 genbest=3.302 srvmax=3.00s mean=1.369
+gen43: best=3.422 genbest=3.373 srvmax=3.00s mean=0.992
+gen44: best=3.422 genbest=2.315 srvmax=2.14s mean=0.962
+gen45: best=3.422 genbest=3.281 srvmax=3.00s mean=1.350
+gen46: best=3.422 genbest=3.262 srvmax=3.00s mean=1.364
+gen47: best=3.422 genbest=3.310 srvmax=3.00s mean=1.630
+gen48: best=3.422 genbest=3.405 srvmax=3.00s mean=1.702
+gen49: best=3.422 genbest=3.267 srvmax=3.00s mean=1.388
+gen50: best=3.422 genbest=3.340 srvmax=3.00s mean=1.518
+gen51: best=3.422 genbest=3.249 srvmax=3.00s mean=1.612
+gen52: best=3.422 genbest=3.388 srvmax=3.00s mean=1.361
+gen53: best=3.422 genbest=3.290 srvmax=3.00s mean=1.600
+gen54: best=3.422 genbest=3.403 srvmax=3.00s mean=1.791
+gen55: best=3.422 genbest=3.354 srvmax=3.00s mean=1.711
+gen56: best=3.422 genbest=3.313 srvmax=3.00s mean=1.407
+gen57: best=3.422 genbest=3.304 srvmax=3.00s mean=1.641
+gen58: best=3.422 genbest=3.349 srvmax=3.00s mean=1.442
+gen59: best=3.422 genbest=3.289 srvmax=3.00s mean=1.221
+gen60: best=3.422 genbest=2.785 srvmax=2.49s mean=1.486
+gen61: best=3.422 genbest=3.385 srvmax=3.00s mean=1.829
+gen62: best=3.422 genbest=3.350 srvmax=3.00s mean=1.437
+gen63: best=3.422 genbest=3.387 srvmax=3.00s mean=1.255
+gen64: best=3.422 genbest=2.279 srvmax=2.17s mean=1.008
+gen65: best=3.422 genbest=3.334 srvmax=3.00s mean=1.719
+gen66: best=3.422 genbest=3.337 srvmax=3.00s mean=1.539
+gen67: best=3.422 genbest=3.375 srvmax=3.00s mean=1.650
+gen68: best=3.422 genbest=3.362 srvmax=3.00s mean=1.908
+gen69: best=3.422 genbest=3.335 srvmax=3.00s mean=1.924
+gen70: best=3.422 genbest=3.393 srvmax=3.00s mean=1.886
+gen71: best=3.422 genbest=3.388 srvmax=3.00s mean=1.794
+gen72: best=3.422 genbest=3.417 srvmax=3.00s mean=1.946
+gen73: best=3.422 genbest=3.369 srvmax=3.00s mean=1.618
+gen74: best=3.422 genbest=3.320 srvmax=3.00s mean=1.962
+gen75: best=3.422 genbest=3.374 srvmax=3.00s mean=1.823
+gen76: best=3.422 genbest=3.391 srvmax=3.00s mean=1.932
+gen77: best=3.422 genbest=3.342 srvmax=3.00s mean=2.128
+gen78: best=3.422 genbest=3.373 srvmax=3.00s mean=1.799
+gen79: best=3.422 genbest=3.392 srvmax=3.00s mean=1.943
+gen80: best=3.422 genbest=3.370 srvmax=3.00s mean=1.211
+gen81: best=3.422 genbest=2.482 srvmax=2.26s mean=1.212
+gen82: best=3.422 genbest=3.364 srvmax=3.00s mean=2.011
+gen83: best=3.422 genbest=3.280 srvmax=3.00s mean=1.055
+gen84: best=3.422 genbest=3.269 srvmax=3.00s mean=1.821
+gen85: best=3.422 genbest=3.405 srvmax=3.00s mean=1.767
+gen86: best=3.434 genbest=3.434 srvmax=3.00s mean=2.223
+gen87: best=3.434 genbest=3.310 srvmax=3.00s mean=2.095
+Process SpawnPoolWorker-4:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/resource_tracker.py:216: UserWarning: resource_tracker: There appear to be 6 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '
+(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-10:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/resource_tracker.py:216: UserWarning: resource_tracker: There appear to be 6 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

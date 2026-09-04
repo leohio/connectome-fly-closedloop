@@ -1,0 +1,14 @@
+区間A: 歩行
+WARNING    'rates' is an internal variable of group 'cmd_in', but also exists in the run namespace with the value array([250., 250., 250., 250.,   0.,   0.,   0.,   0.,   0.,   0.]). The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'rates' is an internal variable of group 'cmd_in', but also exists in the run namespace with the value array([250., 250., 250., 250., 800., 800.,   0.,   0.,   0.,   0.]). The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+t=2.21s GF発火3 → [カット] 空中開始 z=12.0
+区間B: 飛行 (エンジン=fly_engine)
+ERROR      Brian 2 encountered an unexpected error. If you think this is a bug in Brian 2, please report this issue either to the discourse forum at <http://brian.discourse.group/>, or to the issue tracker at <https://github.com/brian-team/brian2/issues>. Please include this file with debug information in your report: /var/folders/4j/bfyrxw5n5mgcbd36g5867j7c0000gn/T/brian_debug_k13kwmp_.log  Additionally, you can also include a copy of the script that was run, available at: /var/folders/4j/bfyrxw5n5mgcbd36g5867j7c0000gn/T/brian_script_irwcr46f.py Thanks! [brian2]
+Traceback (most recent call last):
+  File "/Users/andropov/repos/physical-based-llm/fly-integrated/sequence2.py", line 226, in <module>
+    main()
+  File "/Users/andropov/repos/physical-based-llm/fly-integrated/sequence2.py", line 189, in main
+    t_fly, reason, (fl_t, fl_i) = CB.fly_engine(
+  File "/Users/andropov/repos/physical-based-llm/fly-integrated/connectome_bioflight.py", line 201, in fly_engine
+    E = env()
+NameError: name 'env' is not defined

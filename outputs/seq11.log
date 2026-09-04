@@ -1,0 +1,24 @@
+読出しWを較正中 (ES-Kと整合する外部較正)...
+脳視覚を較正中...
+シーケンス開始
+WARNING    The name "tau" refers to different objects in different namespaces used for resolving names in the context of group "vnc". Will use the object from the group-specific namespace with the value 5. * msecond, but the name also refers to a variable in the run namespace with value '0.04743416490252569'. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'vnc', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'syn', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+t=2.20s GF発火2 → 離陸 (脚押し出し)
+WARNING    The name "tau" refers to different objects in different namespaces used for resolving names in the context of group "sub". Will use the object from the group-specific namespace with the value 5. * msecond, but the name also refers to a variable in the run namespace with value '0.04743416490252569'. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'sub', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'ssyn', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    The name "tau" refers to different objects in different namespaces used for resolving names in the context of group "vis". Will use the object from the group-specific namespace with the value 5. * msecond, but the name also refers to a variable in the run namespace with value '0.04743416490252569'. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'vis', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'vsyn', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+t=5.20s 巡航 (目標z=12.0)
+t=9.70s 降下開始
+t=9.74s 接地 (直立+0.82, vz-8.6) → 静定
+t=12.24s 静定失敗 (直立-0.94)
+記録完了: 859フレーム 最終mode=walk z=0.04
+安定飛行の基準:
+  [不合格] S1_背中が上: 飛行中の最小up=-0.99
+  [不合格] S2_高度維持: 巡航高度誤差max=11.95 飛行中床接触=30
+  [合格] S3_持続: 巡航4.48s
+  [不合格] S4_着陸: 接地up=0.76 静定後up=-0.94
+  総合: 不成立

@@ -1,0 +1,19 @@
+SN 542本 / プール42方向
+WARNING    The name "tau" refers to different objects in different namespaces used for resolving names in the context of group "vnc". Will use the object from the group-specific namespace with the value 5. * msecond, but the name also refers to a variable in the run namespace with value '0.04743416490252569'. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'vnc', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'syn', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+MDN=150Hz+反射α=0.25 2.0s: 直立度=+0.99 z=+0.146 前進=-0.0193 側方=+0.0629
+  中脚femur振幅std: L=0.0082 R=0.0045 L-R相関=+0.20
+  遊脚率 (接地力ゼロの時間割合) {'LF': 0.56, 'LM': 0.06, 'LH': 0.8, 'RF': 0.64, 'RM': 0.58, 'RH': 0.14}
+SN 542本 / プール42方向
+MDN=150Hz+反射α=0.5 2.0s: 直立度=+0.95 z=+0.167 前進=+0.1042 側方=+0.3508
+  中脚femur振幅std: L=0.0105 R=0.0072 L-R相関=+0.43
+  遊脚率 (接地力ゼロの時間割合) {'LF': 0.79, 'LM': 0.19, 'LH': 0.74, 'RF': 0.92, 'RM': 0.31, 'RH': 0.31}
+SN 542本 / プール42方向
+MDN=150Hz+反射α=1.0 2.0s: 直立度=+0.98 z=+0.148 前進=-0.0322 側方=+0.1516
+  中脚femur振幅std: L=0.0076 R=0.0066 L-R相関=+0.34
+  遊脚率 (接地力ゼロの時間割合) {'LF': 0.57, 'LM': 0.07, 'LH': 0.66, 'RF': 0.96, 'RM': 0.34, 'RH': 0.28}
+SN 542本 / プール42方向
+MDN=300Hz+反射α=0.25 2.0s: 直立度=-0.75 z=+0.043 前進=+0.0447 側方=-0.2799
+  中脚femur振幅std: L=0.0038 R=0.0019 L-R相関=+0.44
+  遊脚率 (接地力ゼロの時間割合) {'LF': 0.84, 'LM': 0.66, 'LH': 0.92, 'RF': 0.92, 'RM': 0.81, 'RH': 0.66}

@@ -1,2 +1,9 @@
 neuron-properties.feather
 outputs/net_cache.npz
+.DS_Store
+outputs/hard_task2.log
+outputs/longflight.log
+outputs/hard_task.log
+outputs/nomod_check.log
+outputs/cbf_bench.log
+outputs/hard_pert.log

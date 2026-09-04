@@ -1,0 +1,26 @@
+読出しWを局所則で学習中...
+脳視覚を較正中...
+シーケンス開始
+WARNING    The name "tau" refers to different objects in different namespaces used for resolving names in the context of group "vnc". Will use the object from the group-specific namespace with the value 5. * msecond, but the name also refers to a variable in the run namespace with value '0.04743416490252569'. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'vnc', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'syn', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+t=2.22s GF発火7 → 離陸
+WARNING    The name "tau" refers to different objects in different namespaces used for resolving names in the context of group "sub". Will use the object from the group-specific namespace with the value 5. * msecond, but the name also refers to a variable in the run namespace with value '0.04743416490252569'. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'sub', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'ssyn', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    The name "tau" refers to different objects in different namespaces used for resolving names in the context of group "vis". Will use the object from the group-specific namespace with the value 5. * msecond, but the name also refers to a variable in the run namespace with value '0.04743416490252569'. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'vis', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'vsyn', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+t=3.22s 低空巡航へ
+t=5.72s 降下開始
+t=5.75s 接地 (着陸反射) → 静定
+t=8.26s 静定失敗 (直立-0.67)
+ERROR      Brian 2 encountered an unexpected error. If you think this is a bug in Brian 2, please report this issue either to the discourse forum at <http://brian.discourse.group/>, or to the issue tracker at <https://github.com/brian-team/brian2/issues>. Please include this file with debug information in your report: /var/folders/4j/bfyrxw5n5mgcbd36g5867j7c0000gn/T/brian_debug_69tlzi3m.log  Additionally, you can also include a copy of the script that was run, available at: /var/folders/4j/bfyrxw5n5mgcbd36g5867j7c0000gn/T/brian_script_qn7dygko.py Thanks! [brian2]
+Traceback (most recent call last):
+  File "/Users/andropov/repos/physical-based-llm/fly-integrated/behavior_sequence.py", line 480, in <module>
+    main()
+  File "/Users/andropov/repos/physical-based-llm/fly-integrated/behavior_sequence.py", line 471, in main
+    phase=np.array([(p[0], {"walk": 0, "takeoff": 1, "flight": 2,
+  File "/Users/andropov/repos/physical-based-llm/fly-integrated/behavior_sequence.py", line 471, in <listcomp>
+    phase=np.array([(p[0], {"walk": 0, "takeoff": 1, "flight": 2,
+KeyError: 'settle'

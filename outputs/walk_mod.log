@@ -1,0 +1,8 @@
+SN 542本 / プール42方向
+WARNING    The name "tau" refers to different objects in different namespaces used for resolving names in the context of group "vnc". Will use the object from the group-specific namespace with the value 5. * msecond, but the name also refers to a variable in the run namespace with value '0.04743416490252569'. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'vnc', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'syn', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+MDN=150.0Hz+反射α=1.0 3.0s: 直立度=+0.99 z=+0.147 前進=+0.0778 側方=-0.0219
+  中脚femur振幅std: L=0.0067 R=0.0055 L-R相関=+0.40
+  遊脚率 (接地力ゼロの時間割合) {'LF': 0.48, 'LM': 0.08, 'LH': 0.67, 'RF': 0.88, 'RM': 0.4, 'RH': 0.18}
+動画: outputs/walk_modality.mp4

@@ -1,0 +1,3 @@
+WBF=202.3Hz
+AHP=False: b1_L:R=0.06(1.99/cyc) b1_R:R=0.01(1.99/cyc) b2_R:R=0.01(1.99/cyc) i1_L:R=0.69(0.99/cyc) i1_R:R=0.08(1.99/cyc) i2_L:R=0.36(0.30/cyc) iii1_L:R=0.42(0.33/cyc) hg1_R:R=0.09(1.99/cyc)
+AHP=True: b1_L:R=1.00(0.99/cyc) b1_R:R=1.00(0.99/cyc) b2_R:R=1.00(0.99/cyc) i1_L:R=1.00(1.01/cyc) i1_R:R=0.99(0.99/cyc) i2_L:R=0.34(0.23/cyc) iii1_L:R=0.28(0.31/cyc) hg1_R:R=1.00(0.99/cyc)

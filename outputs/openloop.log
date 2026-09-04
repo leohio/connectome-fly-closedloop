@@ -1,0 +1,408 @@
+基準(hover_params, 帰還なし): 生存1.32s 直立+0.53 高度誤差6.3 fit=1.458
+gen0: best=1.539 genbest=1.539 srvmax=1.38s mean=0.781
+gen1: best=1.601 genbest=1.601 srvmax=1.48s mean=0.989
+gen2: best=1.654 genbest=1.654 srvmax=1.51s mean=1.061
+gen3: best=1.654 genbest=1.640 srvmax=1.53s mean=0.874
+gen4: best=1.784 genbest=1.784 srvmax=1.66s mean=0.856
+gen5: best=1.784 genbest=1.458 srvmax=1.28s mean=0.838
+gen6: best=1.784 genbest=1.570 srvmax=1.37s mean=0.988
+gen7: best=1.784 genbest=1.592 srvmax=1.33s mean=0.789
+gen8: best=1.784 genbest=1.666 srvmax=1.52s mean=0.987
+gen9: best=1.784 genbest=1.408 srvmax=1.29s mean=0.783
+gen10: best=1.784 genbest=1.606 srvmax=1.43s mean=1.015
+gen11: best=1.784 genbest=1.673 srvmax=1.53s mean=1.116
+gen12: best=1.784 genbest=1.534 srvmax=1.38s mean=0.894
+gen13: best=1.784 genbest=1.434 srvmax=1.28s mean=0.883
+gen14: best=1.784 genbest=1.532 srvmax=1.29s mean=0.854
+gen15: best=1.784 genbest=1.646 srvmax=1.51s mean=1.053
+gen16: best=1.784 genbest=1.521 srvmax=1.41s mean=0.996
+gen17: best=1.784 genbest=1.688 srvmax=1.52s mean=1.008
+gen18: best=1.784 genbest=1.513 srvmax=1.42s mean=0.945
+gen19: best=1.784 genbest=1.482 srvmax=1.33s mean=1.034
+gen20: best=1.784 genbest=1.703 srvmax=1.55s mean=0.977
+Process SpawnPoolWorker-3:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-11:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-2:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-10:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-9:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-7:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-1:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-12:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-5:
+Process SpawnPoolWorker-4:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-6:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-8:
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/queues.py", line 378, in put
+    self._writer.send_bytes(obj)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 205, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 416, in _send_bytes
+    self._send(header + buf)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/connection.py", line 373, in _send
+    n = write(self._handle, buf)
+BrokenPipeError: [Errno 32] Broken pipe
+/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/multiprocessing/resource_tracker.py:216: UserWarning: resource_tracker: There appear to be 6 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

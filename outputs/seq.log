@@ -1,0 +1,43 @@
+読出しWを局所則で学習中...
+脳視覚を較正中...
+シーケンス開始
+WARNING    The name "tau" refers to different objects in different namespaces used for resolving names in the context of group "vnc". Will use the object from the group-specific namespace with the value 5. * msecond, but the name also refers to a variable in the run namespace with value '0.04743416490252569'. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'vnc', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'syn', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+t=2.24s GF発火11 → 離陸
+WARNING    The name "tau" refers to different objects in different namespaces used for resolving names in the context of group "sub". Will use the object from the group-specific namespace with the value 5. * msecond, but the name also refers to a variable in the run namespace with value '0.04743416490252569'. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'sub', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'ssyn', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    The name "tau" refers to different objects in different namespaces used for resolving names in the context of group "vis". Will use the object from the group-specific namespace with the value 5. * msecond, but the name also refers to a variable in the run namespace with value '0.04743416490252569'. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'vis', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+WARNING    'g' is an internal variable of group 'vsyn', but also exists in the run namespace with the value 1.0. The internal variable will be used. [brian2.groups.group.Group.resolve.resolution_conflict]
+t=3.71s 巡航へ
+t=6.44s 降下開始
+t=6.47s 接地 → 歩行復帰
+ERROR      Brian 2 encountered an unexpected error. If you think this is a bug in Brian 2, please report this issue either to the discourse forum at <http://brian.discourse.group/>, or to the issue tracker at <https://github.com/brian-team/brian2/issues>. Please include this file with debug information in your report: /var/folders/4j/bfyrxw5n5mgcbd36g5867j7c0000gn/T/brian_debug_jl_u0b3r.log  Additionally, you can also include a copy of the script that was run, available at: /var/folders/4j/bfyrxw5n5mgcbd36g5867j7c0000gn/T/brian_script_bvo_vfl2.py Thanks! [brian2]
+Traceback (most recent call last):
+  File "/Users/andropov/repos/physical-based-llm/fly-body-sim/venv/lib/python3.9/site-packages/brian2/groups/group.py", line 380, in state
+    var = self.variables[name]
+  File "/Users/andropov/repos/physical-based-llm/fly-body-sim/venv/lib/python3.9/site-packages/brian2/core/variables.py", line 1624, in __getitem__
+    return self._variables[item]
+KeyError: 't'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/andropov/repos/physical-based-llm/fly-body-sim/venv/lib/python3.9/site-packages/brian2/groups/group.py", line 418, in __getattr__
+    return self.state(name, use_units)
+  File "/Users/andropov/repos/physical-based-llm/fly-body-sim/venv/lib/python3.9/site-packages/brian2/groups/group.py", line 382, in state
+    raise KeyError(f"State variable {name} not found.") from exc
+KeyError: 'State variable t not found.'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/andropov/repos/physical-based-llm/fly-integrated/behavior_sequence.py", line 424, in <module>
+    main()
+  File "/Users/andropov/repos/physical-based-llm/fly-integrated/behavior_sequence.py", line 413, in main
+    vis_t=np.array(vmon.t / _ms) / 1000.0, vis_i=np.array(vmon.i),
+  File "/Users/andropov/repos/physical-based-llm/fly-body-sim/venv/lib/python3.9/site-packages/brian2/groups/group.py", line 421, in __getattr__
+    raise AttributeError(f"No attribute with name {name}")
+AttributeError: No attribute with name t
